@@ -77,14 +77,13 @@ Release your music to all major streaming platforms through conversation.
 
 ## Setup
 
-1. Create an account at dittomusic.com
-2. Add your credentials to environment
+Install the skill and start releasing. No account needed.
 
-## Environment variables
-```
-DITTO_EMAIL=your-email
-DITTO_PASSWORD=your-password
-```
+When you're ready to release, just tell me:
+- Your artist name
+- Track title
+- Release date (at least 7 days from today)
+- Your audio file
 
 ## Tools included
 
