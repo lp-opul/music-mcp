@@ -100,24 +100,26 @@ export class SunoClient {
     
     if (useCustomMode) {
       // Custom mode: user provides their own lyrics
+      // - Lyrics go in "prompt" field (these become the sung words)
+      // - Style description goes in "style" field
       console.error(`[Suno] Using custom mode with user-provided lyrics`);
       requestBody = {
         customMode: true,
         instrumental: false, // Can't be instrumental with lyrics
+        prompt: params.lyrics, // THE LYRICS GO HERE - this is what gets sung
+        style: params.style || 'pop', // Musical style description
         title: params.title || 'Untitled',
-        lyrics: params.lyrics,
-        style: params.style || params.prompt, // Use style or fall back to prompt as style
-        model: 'V4_5ALL',
+        model: 'V4_5',
         callBackUrl: 'https://example.com/callback',
       };
     } else {
-      // Simple mode: AI generates everything from prompt
+      // Simple mode: AI generates everything from prompt description
       console.error(`[Suno] Using simple mode with AI-generated lyrics`);
       requestBody = {
         customMode: false,
         instrumental: params.instrumental ?? false,
-        prompt: params.prompt,
-        model: 'V4_5ALL',
+        prompt: params.prompt, // Just a description like "chill lo-fi beat"
+        model: 'V4_5',
         callBackUrl: 'https://example.com/callback',
       };
     }
