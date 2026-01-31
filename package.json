@@ -7,7 +7,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
+    "start:api": "node dist/http-server.js",
+    "dev": "tsx src/index.ts",
+    "dev:api": "tsx src/http-server.ts"
   },
   "keywords": [
     "mcp",
@@ -17,11 +19,16 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@coinbase/cdp-sdk": "^1.44.0",
+    "@coinbase/x402": "^2.1.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "x402-express": "^1.1.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^20.11.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"

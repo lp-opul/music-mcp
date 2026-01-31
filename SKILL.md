@@ -66,6 +66,7 @@ Release your music to all major streaming platforms through conversation.
 - Track release status and streaming analytics
 - Manage artists and royalty splits
 - Check your streams and earnings
+- **Automatic wallet creation** — When you release music, I'll create a wallet for your royalties
 
 ## Example prompts
 
@@ -95,3 +96,5 @@ When you're ready to release, just tell me:
 - `get_streams` — View play counts
 - `get_earnings` — View revenue
 - `set_splits` — Configure royalty splits
+- `get_my_wallet` — Get your royalty wallet address
+- `get_my_balance` — Check your wallet balance

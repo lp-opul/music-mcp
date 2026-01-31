@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { createDittoClient } from './ditto-client.js';
 import { createSunoClient } from './suno-client.js';
+import { createArtistWallet, getArtistWallet, getWalletBalance, isCdpConfigured, } from './wallet-service.js';
 import { createMockUploadResponse, createMockSubmitReleaseResponse, getMockReleaseStatus, getMockEarnings, getMockStreams, setMockSplits, } from './mocks/mock-data.js';
 // Load environment variables from the project root (not cwd)
 // This ensures Claude Desktop can find .env regardless of working directory
@@ -451,6 +452,34 @@ const tools = [
             required: ['prompt', 'artistName', 'trackTitle', 'releaseDate'],
         },
     },
+    {
+        name: 'get_my_wallet',
+        description: 'Get the wallet address for an artist. Each artist gets a unique wallet for receiving royalties.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                artistName: {
+                    type: 'string',
+                    description: 'Name of the artist',
+                },
+            },
+            required: ['artistName'],
+        },
+    },
+    {
+        name: 'get_my_balance',
+        description: 'Check the balance of an artist\'s wallet.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                artistName: {
+                    type: 'string',
+                    description: 'Name of the artist',
+                },
+            },
+            required: ['artistName'],
+        },
+    },
 ];
 // Input validation schemas
 const createArtistSchema = z.object({
@@ -530,6 +559,12 @@ const releaseAiTrackSchema = z.object({
     lyrics: z.string().optional(),
     style: z.string().optional(),
     artworkPrompt: z.string().optional(),
+});
+const getMyWalletSchema = z.object({
+    artistName: z.string(),
+});
+const getMyBalanceSchema = z.object({
+    artistName: z.string(),
 });
 // Create MCP server
 const server = new Server({
@@ -1008,6 +1043,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         steps.push(`   ✅ Created new artist (ID: ${artistId})`);
                         console.error(`[release_ai_track] Created new artist: ${artistId}`);
                     }
+                    // Step 3b: Create/get wallet for artist
+                    let artistWallet = null;
+                    if (isCdpConfigured()) {
+                        steps.push(`💰 Setting up royalty wallet...`);
+                        console.error(`[release_ai_track] Step 3b: Creating wallet for ${validated.artistName}`);
+                        artistWallet = await createArtistWallet(validated.artistName);
+                        if (artistWallet) {
+                            steps.push(`   ✅ Wallet: ${artistWallet.slice(0, 6)}...${artistWallet.slice(-4)}`);
+                        }
+                        else {
+                            steps.push(`   ⚠️ Wallet creation skipped`);
+                        }
+                    }
                     // Step 4: Create release on Ditto
                     steps.push(`💿 Creating release "${validated.trackTitle}" for ${validated.releaseDate}...`);
                     console.error(`[release_ai_track] Step 4: Creating release: ${validated.trackTitle}`);
@@ -1072,6 +1120,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                                     summary: {
                                         artistName: validated.artistName,
                                         artistId: artistId,
+                                        artistWallet: artistWallet,
                                         trackTitle: validated.trackTitle,
                                         releaseId: releaseId,
                                         trackId: trackId,
@@ -1105,6 +1154,63 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         isError: true,
                     };
                 }
+            }
+            // ============================================
+            // Wallet Tools
+            // ============================================
+            case 'get_my_wallet': {
+                const validated = getMyWalletSchema.parse(args);
+                const wallet = getArtistWallet(validated.artistName);
+                if (wallet) {
+                    return {
+                        content: [{
+                                type: 'text',
+                                text: JSON.stringify({
+                                    artistName: validated.artistName,
+                                    walletAddress: wallet,
+                                    network: 'Base',
+                                    message: `This is ${validated.artistName}'s wallet for receiving royalties.`,
+                                }, null, 2),
+                            }],
+                    };
+                }
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                artistName: validated.artistName,
+                                walletAddress: null,
+                                message: 'No wallet found. A wallet will be created automatically when you release music.',
+                            }, null, 2),
+                        }],
+                };
+            }
+            case 'get_my_balance': {
+                const validated = getMyBalanceSchema.parse(args);
+                const wallet = getArtistWallet(validated.artistName);
+                if (!wallet) {
+                    return {
+                        content: [{
+                                type: 'text',
+                                text: JSON.stringify({
+                                    artistName: validated.artistName,
+                                    error: 'No wallet found for this artist. Release music first to create a wallet.',
+                                }, null, 2),
+                            }],
+                    };
+                }
+                const balance = await getWalletBalance(wallet);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                artistName: validated.artistName,
+                                walletAddress: wallet,
+                                balance: balance,
+                                network: 'Base',
+                            }, null, 2),
+                        }],
+                };
             }
             default:
                 return {
