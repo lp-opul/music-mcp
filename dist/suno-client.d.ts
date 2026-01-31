@@ -6,6 +6,8 @@ export interface GenerateMusicRequest {
     prompt: string;
     style?: string;
     instrumental?: boolean;
+    lyrics?: string;
+    title?: string;
 }
 export interface GenerationTask {
     taskId: string;

@@ -9,6 +9,9 @@ export interface GenerateMusicRequest {
   prompt: string;
   style?: string;
   instrumental?: boolean;
+  // Custom mode fields - provide your own lyrics
+  lyrics?: string;
+  title?: string;
 }
 
 export interface GenerationTask {
@@ -90,15 +93,38 @@ export class SunoClient {
   }
 
   async generateMusic(params: GenerateMusicRequest): Promise<GenerationTask> {
-    const result = await this.request<any>('/api/v1/generate', {
-      method: 'POST',
-      body: JSON.stringify({
+    // Use custom mode if lyrics are provided
+    const useCustomMode = !!params.lyrics;
+    
+    let requestBody: any;
+    
+    if (useCustomMode) {
+      // Custom mode: user provides their own lyrics
+      console.error(`[Suno] Using custom mode with user-provided lyrics`);
+      requestBody = {
+        customMode: true,
+        instrumental: false, // Can't be instrumental with lyrics
+        title: params.title || 'Untitled',
+        lyrics: params.lyrics,
+        style: params.style || params.prompt, // Use style or fall back to prompt as style
+        model: 'V4_5ALL',
+        callBackUrl: 'https://example.com/callback',
+      };
+    } else {
+      // Simple mode: AI generates everything from prompt
+      console.error(`[Suno] Using simple mode with AI-generated lyrics`);
+      requestBody = {
         customMode: false,
         instrumental: params.instrumental ?? false,
         prompt: params.prompt,
         model: 'V4_5ALL',
-        callBackUrl: 'https://example.com/callback', // Required by API, we use polling instead
-      }),
+        callBackUrl: 'https://example.com/callback',
+      };
+    }
+    
+    const result = await this.request<any>('/api/v1/generate', {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
     });
 
     if (result.code !== 200) {

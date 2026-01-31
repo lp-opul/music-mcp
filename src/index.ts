@@ -392,21 +392,29 @@ const tools: Tool[] = [
   },
   {
     name: 'generate_music',
-    description: 'Generate music using Suno AI. Creates a track from a text prompt describing the song.',
+    description: 'Generate music using Suno AI. Can use AI-generated lyrics (simple mode) or your own custom lyrics (custom mode).',
     inputSchema: {
       type: 'object',
       properties: {
         prompt: {
           type: 'string',
-          description: 'Description of the song to generate (e.g., "upbeat electronic dance track with synths")',
+          description: 'Description of the song to generate. In simple mode, this guides the AI. In custom mode, this becomes the style.',
         },
         style: {
           type: 'string',
-          description: 'Musical style/genre (e.g., "electronic", "rock", "jazz") - optional',
+          description: 'Musical style/genre (e.g., "indie pop, dreamy, female vocals"). Used in custom mode.',
         },
         instrumental: {
           type: 'boolean',
-          description: 'If true, generate instrumental only (no vocals). Defaults to false.',
+          description: 'If true, generate instrumental only (no vocals). Cannot be used with custom lyrics.',
+        },
+        lyrics: {
+          type: 'string',
+          description: 'Optional: Your own lyrics. Use [Verse], [Chorus], [Bridge] tags to structure. If provided, enables custom mode.',
+        },
+        title: {
+          type: 'string',
+          description: 'Optional: Song title. Used when providing custom lyrics.',
         },
       },
       required: ['prompt'],
@@ -414,13 +422,13 @@ const tools: Tool[] = [
   },
   {
     name: 'release_ai_track',
-    description: 'One-shot tool: Generate AI music with Suno and set up for distribution on Ditto. Creates artist, release, track, and optionally artwork in one call.',
+    description: 'One-shot tool: Generate AI music with Suno and set up for distribution on Ditto. Creates artist, release, track, and optionally artwork in one call. Supports custom lyrics.',
     inputSchema: {
       type: 'object',
       properties: {
         prompt: {
           type: 'string',
-          description: 'Description of the song to generate (e.g., "chill lo-fi beat with jazzy piano")',
+          description: 'Description of the song to generate. If using custom lyrics, this becomes the musical style.',
         },
         artistName: {
           type: 'string',
@@ -444,7 +452,15 @@ const tools: Tool[] = [
         },
         instrumental: {
           type: 'boolean',
-          description: 'If true, generate instrumental only (no vocals). Defaults to false.',
+          description: 'If true, generate instrumental only (no vocals). Cannot be used with custom lyrics.',
+        },
+        lyrics: {
+          type: 'string',
+          description: 'Optional: Your own lyrics. Use [Verse], [Chorus], [Bridge] tags. If provided, AI will sing your words.',
+        },
+        style: {
+          type: 'string',
+          description: 'Optional: Musical style (e.g., "indie pop, dreamy vocals, acoustic guitar"). Recommended when using custom lyrics.',
         },
         artworkPrompt: {
           type: 'string',
@@ -531,6 +547,8 @@ const generateMusicSchema = z.object({
   prompt: z.string(),
   style: z.string().optional(),
   instrumental: z.boolean().optional(),
+  lyrics: z.string().optional(),
+  title: z.string().optional(),
 });
 
 const releaseAiTrackSchema = z.object({
@@ -540,6 +558,8 @@ const releaseAiTrackSchema = z.object({
   releaseDate: z.string(),
   dsps: z.array(z.enum(['spotify', 'apple_music', 'amazon_music', 'youtube_music', 'deezer', 'tidal', 'pandora', 'soundcloud', 'tiktok', 'instagram'])).optional(),
   instrumental: z.boolean().optional(),
+  lyrics: z.string().optional(),
+  style: z.string().optional(),
   artworkPrompt: z.string().optional(),
 });
 
@@ -991,6 +1011,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           prompt: validated.prompt,
           style: validated.style,
           instrumental: validated.instrumental,
+          lyrics: validated.lyrics,
+          title: validated.title,
         });
 
         // Wait for completion
@@ -1048,12 +1070,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         
         try {
           // Step 1: Generate music with Suno
-          steps.push('🎵 Generating music with Suno AI...');
-          console.error('[release_ai_track] Step 1: Generating music...');
+          const usingCustomLyrics = !!validated.lyrics;
+          if (usingCustomLyrics) {
+            steps.push('🎵 Generating music with your custom lyrics...');
+          } else {
+            steps.push('🎵 Generating music with Suno AI...');
+          }
+          console.error(`[release_ai_track] Step 1: Generating music (custom lyrics: ${usingCustomLyrics})...`);
           
           const task = await sunoClient.generateMusic({
             prompt: validated.prompt,
+            style: validated.style,
             instrumental: validated.instrumental,
+            lyrics: validated.lyrics,
+            title: validated.trackTitle,
           });
           
           steps.push(`   Task ID: ${task.taskId}`);
