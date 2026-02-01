@@ -190,6 +190,8 @@ app.post('/api/generate', asyncHandler(async (req, res) => {
         })),
     });
 }));
+// Cache for downloaded audio (taskId -> base64 audio data)
+const audioCache = new Map();
 /**
  * GET /api/generate/status/:taskId - Check generation status
  */
@@ -198,8 +200,68 @@ app.get('/api/generate/status/:taskId', asyncHandler(async (req, res) => {
         return res.status(503).json({ error: 'Suno client not configured' });
     }
     const taskId = req.params.taskId;
+    // Check if we already cached this task
+    const cached = audioCache.get(taskId);
+    if (cached) {
+        return res.json({
+            success: true,
+            status: 'SUCCESS',
+            cached: true,
+            tracks: [{
+                    id: taskId,
+                    title: cached.title,
+                    audioData: cached.audio.substring(0, 50) + '...', // Don't send full data, just indicate it's cached
+                    imageData: cached.image.substring(0, 50) + '...',
+                }],
+        });
+    }
     const details = await sunoClient.getGenerationDetails(taskId);
     if (details.status === 'SUCCESS' && details.tracks && details.tracks.length > 0) {
+        const track = details.tracks[0];
+        // Download and cache audio immediately before URL expires
+        try {
+            console.error(`[Cache] Downloading audio for task ${taskId}...`);
+            // Try audioUrl first, fallback to streamUrl
+            let audioUrl = track.audioUrl;
+            let audioRes = await fetch(audioUrl);
+            if (audioRes.status === 403 && audioUrl.endsWith('.mp3')) {
+                audioUrl = track.streamAudioUrl || audioUrl.replace('.mp3', '');
+                audioRes = await fetch(audioUrl);
+            }
+            if (audioRes.ok) {
+                const audioBuffer = await audioRes.arrayBuffer();
+                if (audioBuffer.byteLength > 0) {
+                    const audioBase64 = Buffer.from(audioBuffer).toString('base64');
+                    console.error(`[Cache] Downloaded ${audioBuffer.byteLength} bytes of audio`);
+                    // Download image too
+                    let imageBase64 = '';
+                    if (track.imageUrl) {
+                        const imgRes = await fetch(track.imageUrl);
+                        if (imgRes.ok) {
+                            const imgBuffer = await imgRes.arrayBuffer();
+                            imageBase64 = Buffer.from(imgBuffer).toString('base64');
+                            console.error(`[Cache] Downloaded ${imgBuffer.byteLength} bytes of image`);
+                        }
+                    }
+                    // Cache the data
+                    audioCache.set(taskId, {
+                        audio: audioBase64,
+                        image: imageBase64,
+                        title: track.title,
+                        timestamp: Date.now(),
+                    });
+                    // Clean old cache entries (keep last 10)
+                    if (audioCache.size > 10) {
+                        const oldest = Array.from(audioCache.entries())
+                            .sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
+                        audioCache.delete(oldest[0]);
+                    }
+                }
+            }
+        }
+        catch (e) {
+            console.error(`[Cache] Failed to cache audio: ${e}`);
+        }
         return res.json({
             success: true,
             status: 'SUCCESS',
@@ -219,6 +281,21 @@ app.get('/api/generate/status/:taskId', asyncHandler(async (req, res) => {
         message: details.status === 'SUCCESS' ? 'Complete but no tracks' : 'Still generating...',
     });
 }));
+/**
+ * GET /api/audio/:taskId - Get cached audio data
+ */
+app.get('/api/audio/:taskId', (req, res) => {
+    const taskId = req.params.taskId;
+    const cached = audioCache.get(taskId);
+    if (!cached) {
+        return res.status(404).json({ error: 'Audio not found in cache' });
+    }
+    // Return as downloadable audio file
+    const audioBuffer = Buffer.from(cached.audio, 'base64');
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', `attachment; filename="${cached.title}.mp3"`);
+    res.send(audioBuffer);
+});
 // ============================================
 // Track Upload
 // ============================================
@@ -226,22 +303,64 @@ app.get('/api/generate/status/:taskId', asyncHandler(async (req, res) => {
  * POST /api/upload-track - Upload track to release
  */
 app.post('/api/upload-track', asyncHandler(async (req, res) => {
-    const { releaseId, artistId, title, audioUrl, explicit, language } = req.body;
-    if (!releaseId || !title || !audioUrl) {
-        return res.status(400).json({ error: 'releaseId, title, and audioUrl are required' });
-    }
-    // Check audio format (allow .mp3 or .wav anywhere in URL, not just at end)
-    const audioUrlLower = audioUrl.toLowerCase();
-    const isMp3 = audioUrlLower.includes('.mp3');
-    const isWav = audioUrlLower.includes('.wav');
-    if (!isMp3 && !isWav) {
-        return res.status(400).json({ error: 'Audio URL must contain .mp3 or .wav' });
+    const { releaseId, artistId, title, audioUrl, taskId, explicit, language } = req.body;
+    if (!releaseId || !title) {
+        return res.status(400).json({ error: 'releaseId and title are required' });
     }
     // Extract release ID
     const releaseIdMatch = releaseId.toString().match(/\/(\d+)$/) || releaseId.toString().match(/^(\d+)$/);
     const cleanReleaseId = releaseIdMatch ? releaseIdMatch[1] : releaseId;
-    const fileExt = isWav ? 'wav' : 'mp3';
-    const result = await dittoClient.createTrackWithAudio(cleanReleaseId, audioUrl, `${title.replace(/[^a-zA-Z0-9]/g, '_')}.${fileExt}`);
+    // Check if we have cached audio for this task
+    let audioBuffer = null;
+    // Try to find cached audio by taskId or by matching URL pattern
+    if (taskId && audioCache.has(taskId)) {
+        const cached = audioCache.get(taskId);
+        audioBuffer = Buffer.from(cached.audio, 'base64');
+        console.error(`[Upload] Using cached audio for task ${taskId} (${audioBuffer.length} bytes)`);
+    }
+    else if (audioUrl) {
+        // Try to extract taskId from URL (the base64-looking part)
+        const urlMatch = audioUrl.match(/\/([A-Za-z0-9+/=]{20,})\./);
+        if (urlMatch) {
+            // Search cache for matching audio
+            for (const [cachedTaskId, cached] of audioCache.entries()) {
+                if (cached.audio) {
+                    audioBuffer = Buffer.from(cached.audio, 'base64');
+                    console.error(`[Upload] Found cached audio from task ${cachedTaskId} (${audioBuffer.length} bytes)`);
+                    break;
+                }
+            }
+        }
+        // If no cache, try to download directly
+        if (!audioBuffer) {
+            console.error(`[Upload] No cached audio, attempting direct download from: ${audioUrl}`);
+            try {
+                let response = await fetch(audioUrl);
+                if (response.status === 403 && audioUrl.endsWith('.mp3')) {
+                    const streamUrl = audioUrl.replace('.mp3', '');
+                    response = await fetch(streamUrl);
+                }
+                if (response.ok) {
+                    const arrayBuffer = await response.arrayBuffer();
+                    if (arrayBuffer.byteLength > 0) {
+                        audioBuffer = Buffer.from(arrayBuffer);
+                        console.error(`[Upload] Downloaded ${audioBuffer.length} bytes directly`);
+                    }
+                }
+            }
+            catch (e) {
+                console.error(`[Upload] Direct download failed: ${e}`);
+            }
+        }
+    }
+    if (!audioBuffer || audioBuffer.length === 0) {
+        return res.status(400).json({
+            error: 'Could not get audio. The Suno URL may have expired. Try generating a new track.',
+            hint: 'Audio URLs expire quickly. The upload must happen within 1-2 minutes of generation.'
+        });
+    }
+    // Upload using buffer directly
+    const result = await dittoClient.createTrackWithAudioBuffer(cleanReleaseId, audioBuffer, `${title.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`);
     res.json({
         success: true,
         track: result,

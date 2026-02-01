@@ -56,6 +56,10 @@ export declare class DittoClient {
      */
     createTrackWithAudio(releaseId: string, audioUrl: string, filename?: string): Promise<any>;
     /**
+     * Create track with audio from a Buffer (for cached audio)
+     */
+    createTrackWithAudioBuffer(releaseId: string, audioBuffer: Buffer, filename: string): Promise<any>;
+    /**
      * Upload artwork to a release
      * Downloads image from URL and uploads to Ditto releases API
      */

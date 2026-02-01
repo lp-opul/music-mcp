@@ -374,6 +374,48 @@ export class DittoClient {
     return result;
   }
 
+  /**
+   * Create track with audio from a Buffer (for cached audio)
+   */
+  async createTrackWithAudioBuffer(releaseId: string, audioBuffer: Buffer, filename: string): Promise<any> {
+    const token = await this.authenticate();
+    
+    console.error(`[Ditto] Uploading ${audioBuffer.length} bytes as ${filename}`);
+    
+    // Create FormData with the audio file
+    const formData = new FormData();
+    const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: 'audio/mpeg' });
+    formData.append('file', audioBlob, filename);
+    
+    // Upload to Ditto releases API
+    const uploadUrl = `${this.config.releasesUrl}/api/me/releases/${releaseId}/tracks`;
+    console.error(`[Ditto] Creating track with audio at: ${uploadUrl}`);
+    
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+    };
+    
+    if (this.basicAuthHeader) {
+      headers['X-Basic-Authorization'] = this.basicAuthHeader;
+    }
+    
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    
+    if (!uploadResponse.ok) {
+      const error = await uploadResponse.text();
+      throw new Error(`Failed to create track with audio: ${uploadResponse.status} - ${error}`);
+    }
+    
+    const result = await uploadResponse.json();
+    console.error(`[Ditto] Track created with audio successfully`);
+    return result;
+  }
+
   // ============================================
   // Artwork
   // ============================================
