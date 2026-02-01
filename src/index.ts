@@ -722,14 +722,35 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           
           // If audioUrl provided, create track with audio in one request
           if (validated.audioUrl) {
+            // Validate audio format (must be MP3 or WAV)
+            const audioUrlLower = validated.audioUrl.toLowerCase();
+            const isValidFormat = audioUrlLower.endsWith('.mp3') || audioUrlLower.endsWith('.wav');
+            
+            if (!isValidFormat) {
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    error: 'Invalid audio format',
+                    message: 'Audio must be WAV or MP3 format',
+                    providedUrl: validated.audioUrl,
+                  }, null, 2),
+                }],
+                isError: true,
+              };
+            }
+            
             // Extract release ID from IRI if needed
             const releaseIdMatch = validated.releaseId.match(/\/(\d+)$/) || validated.releaseId.match(/^(\d+)$/);
             const releaseId = releaseIdMatch ? releaseIdMatch[1] : validated.releaseId;
             
+            // Determine file extension from URL
+            const fileExt = audioUrlLower.endsWith('.wav') ? 'wav' : 'mp3';
+            
             result = await dittoClient.createTrackWithAudio(
               releaseId,
               validated.audioUrl,
-              `${validated.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`
+              `${validated.title.replace(/[^a-zA-Z0-9]/g, '_')}.${fileExt}`
             );
           } else {
             // Create track metadata only (no audio)
