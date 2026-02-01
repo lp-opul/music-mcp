@@ -33,6 +33,7 @@ export declare class DittoClient {
     getReleases(): Promise<any>;
     getRelease(id: string): Promise<any>;
     updateRelease(id: string, data: any): Promise<any>;
+    addArtistToRelease(releaseId: string, artistId: number): Promise<any>;
     deleteRelease(id: string): Promise<void>;
     createTrack(data: {
         title: string;

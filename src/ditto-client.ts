@@ -206,18 +206,24 @@ export class DittoClient {
     copyrightLine?: string;
     copyrightYear?: number;
   }): Promise<any> {
+    // Extract numeric ID from IRI or use as-is
+    const artistIdMatch = data.artistId.match(/(\d+)$/);
+    const numericArtistId = artistIdMatch ? parseInt(artistIdMatch[1], 10) : parseInt(data.artistId, 10);
+    
+    const payload = {
+      title: data.title,
+      primaryArtist: `/api/me/artists/${numericArtistId}`, // IRI reference
+      originalReleaseDate: data.releaseDate,
+      genre: data.genreId,
+      label: data.labelId,
+      upc: data.upc,
+      cLine: data.copyrightLine,
+      cLineYear: data.copyrightYear,
+    };
+    console.error('[Ditto] createRelease payload:', JSON.stringify(payload, null, 2));
     return this.request('/api/me/releases/music', {
       method: 'POST',
-      body: JSON.stringify({
-        title: data.title,
-        artist: data.artistId, // IRI reference
-        originalReleaseDate: data.releaseDate,
-        genre: data.genreId,
-        label: data.labelId,
-        upc: data.upc,
-        cLine: data.copyrightLine,
-        cLineYear: data.copyrightYear,
-      }),
+      body: JSON.stringify(payload),
     });
   }
 
@@ -233,6 +239,17 @@ export class DittoClient {
     return this.request(`/api/me/releases/music/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    });
+  }
+
+  async addArtistToRelease(releaseId: string, artistId: number): Promise<any> {
+    console.error(`[Ditto] Adding artist ${artistId} to release ${releaseId} via PUT`);
+    // Update release with artist via PUT
+    return this.request(`/api/me/releases/music/${releaseId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ 
+        artists: [`/api/me/artists/${artistId}`]
+      }),
     });
   }
 

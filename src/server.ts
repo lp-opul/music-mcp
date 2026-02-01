@@ -110,6 +110,14 @@ app.post('/api/release', asyncHandler(async (req: Request, res: Response) => {
     ? artistId 
     : `/api/me/artists/${artistId}`;
   
+  console.log('Creating release with:', {
+    title,
+    artistIri,
+    releaseDate,
+    copyrightHolder,
+    copyrightYear,
+  });
+  
   const result = await dittoClient.createRelease({
     title,
     artistId: artistIri,
@@ -117,6 +125,17 @@ app.post('/api/release', asyncHandler(async (req: Request, res: Response) => {
     copyrightLine: copyrightHolder,
     copyrightYear,
   });
+  
+  // Try to add artist to release separately
+  const releaseId = result.id;
+  const numericArtistId = parseInt(artistId.toString().match(/(\d+)$/)?.[1] || artistId, 10);
+  
+  try {
+    await dittoClient.addArtistToRelease(releaseId.toString(), numericArtistId);
+    console.log(`Added artist ${numericArtistId} to release ${releaseId}`);
+  } catch (err) {
+    console.error('Failed to add artist to release:', err);
+  }
   
   res.json({
     success: true,
