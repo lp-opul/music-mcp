@@ -16,10 +16,10 @@ import type { DSP, Split } from './types.js';
 import { createDittoClient, DittoClient } from './ditto-client.js';
 import { createSunoClient, SunoClient } from './suno-client.js';
 import {
-  getOrCreateArtistWallet,
   getArtistWallet,
+  setArtistWallet,
   getWalletBalance,
-  isWalletServiceConfigured,
+  isValidEthAddress,
 } from './wallet-service.js';
 import {
   createMockUploadResponse,
@@ -488,7 +488,7 @@ const tools: Tool[] = [
   },
   {
     name: 'get_my_wallet',
-    description: 'Get the wallet address for an artist. Each artist gets a unique wallet for receiving royalties.',
+    description: 'Get the stored wallet address for an artist.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -498,6 +498,24 @@ const tools: Tool[] = [
         },
       },
       required: ['artistName'],
+    },
+  },
+  {
+    name: 'set_wallet',
+    description: 'Set the wallet address for an artist to receive royalties.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        artistName: {
+          type: 'string',
+          description: 'Name of the artist',
+        },
+        walletAddress: {
+          type: 'string',
+          description: 'Ethereum wallet address (0x...)',
+        },
+      },
+      required: ['artistName', 'walletAddress'],
     },
   },
   {
@@ -609,6 +627,11 @@ const releaseAiTrackSchema = z.object({
 
 const getMyWalletSchema = z.object({
   artistName: z.string(),
+});
+
+const setWalletSchema = z.object({
+  artistName: z.string(),
+  walletAddress: z.string(),
 });
 
 const getMyBalanceSchema = z.object({
@@ -1278,17 +1301,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             console.error(`[release_ai_track] Created new artist: ${artistId}`);
           }
 
-          // Step 3b: Create/get wallet for artist
-          let artistWallet: string | null = null;
-          if (isWalletServiceConfigured()) {
-            steps.push(`💰 Setting up royalty wallet...`);
-            console.error(`[release_ai_track] Step 3b: Creating wallet for ${validated.artistName}`);
-            artistWallet = await getOrCreateArtistWallet(validated.artistName);
-            if (artistWallet) {
-              steps.push(`   ✅ Wallet: ${artistWallet.slice(0, 6)}...${artistWallet.slice(-4)}`);
-            } else {
-              steps.push(`   ⚠️ Wallet creation skipped`);
-            }
+          // Step 3b: Check if wallet is set for artist
+          const artistWallet = getArtistWallet(validated.artistName);
+          if (artistWallet) {
+            steps.push(`💰 Wallet: ${artistWallet.slice(0, 6)}...${artistWallet.slice(-4)}`);
           }
 
           // Step 4: Create release on Ditto
@@ -1385,7 +1401,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                   duration: generatedTrack.duration,
                 },
                 allGeneratedTracks: sunoResult.tracks,
-                hint: 'Use artworkUrl with upload_artwork, or provide your own image (1400x1400 min). Images will be auto-upscaled if needed.',
+                hint: 'Use artworkUrl with upload_artwork, or provide your own image (1400x1400 min).',
+                walletNote: artistWallet ? null : 'No wallet set for royalties. Use set_wallet to add one.',
               }, null, 2),
             }],
           };
@@ -1412,9 +1429,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // ============================================
       case 'get_my_wallet': {
         const validated = getMyWalletSchema.parse(args);
-        
-        // Get existing or create new wallet
-        const wallet = await getOrCreateArtistWallet(validated.artistName);
+        const wallet = getArtistWallet(validated.artistName);
         
         if (wallet) {
           return {
@@ -1424,7 +1439,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 artistName: validated.artistName,
                 walletAddress: wallet,
                 network: 'Ethereum',
-                message: `This is ${validated.artistName}'s wallet for receiving royalties.`,
               }, null, 2),
             }],
           };
@@ -1436,17 +1450,45 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             text: JSON.stringify({
               artistName: validated.artistName,
               walletAddress: null,
-              message: 'Wallet service not configured. Set PRIVY_APP_ID and PRIVY_APP_SECRET to enable wallets.',
+              message: 'No wallet set. Use set_wallet to add one.',
             }, null, 2),
           }],
         };
       }
 
+      case 'set_wallet': {
+        const validated = setWalletSchema.parse(args);
+        const result = setArtistWallet(validated.artistName, validated.walletAddress);
+        
+        if (result.success) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: true,
+                artistName: validated.artistName,
+                walletAddress: validated.walletAddress,
+                message: `Wallet set for ${validated.artistName}. Royalties will be sent to this address.`,
+              }, null, 2),
+            }],
+          };
+        }
+        
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: result.error,
+            }, null, 2),
+          }],
+          isError: true,
+        };
+      }
+
       case 'get_my_balance': {
         const validated = getMyBalanceSchema.parse(args);
-        
-        // Get existing or create new wallet
-        const wallet = await getOrCreateArtistWallet(validated.artistName);
+        const wallet = getArtistWallet(validated.artistName);
         
         if (!wallet) {
           return {
@@ -1454,7 +1496,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               type: 'text',
               text: JSON.stringify({
                 artistName: validated.artistName,
-                error: 'Wallet service not configured. Set PRIVY_APP_ID and PRIVY_APP_SECRET.',
+                error: 'No wallet set. Use set_wallet to add one first.',
               }, null, 2),
             }],
           };
