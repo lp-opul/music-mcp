@@ -411,24 +411,30 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 });
 
 // ============================================
-// Start Server
+// Start Server (local only, not on Vercel)
 // ============================================
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log(`\n🎵 Distro API Server running on http://localhost:${PORT}`);
-  console.log('\nEndpoints:');
-  console.log('  POST /api/artist        - Create artist');
-  console.log('  GET  /api/artists       - List artists');
-  console.log('  POST /api/release       - Create release');
-  console.log('  GET  /api/release/:id   - Get release status');
-  console.log('  GET  /api/releases      - List releases');
-  console.log('  POST /api/generate      - Generate music (Suno)');
-  console.log('  POST /api/upload-track  - Upload track');
-  console.log('  POST /api/upload-artwork - Upload artwork');
-  console.log('  POST /api/submit        - Submit to DSPs');
-  console.log('  POST /api/wallet        - Set artist wallet');
-  console.log('  GET  /api/wallet/:name  - Get artist wallet');
-  console.log('  GET  /api/health        - Health check');
-});
+// Only start server when running locally (not on Vercel)
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    console.log(`\n🎵 Distro API Server running on http://localhost:${PORT}`);
+    console.log('\nEndpoints:');
+    console.log('  POST /api/artist        - Create artist');
+    console.log('  GET  /api/artists       - List artists');
+    console.log('  POST /api/release       - Create release');
+    console.log('  GET  /api/release/:id   - Get release status');
+    console.log('  GET  /api/releases      - List releases');
+    console.log('  POST /api/generate      - Generate music (Suno)');
+    console.log('  POST /api/upload-track  - Upload track');
+    console.log('  POST /api/upload-artwork - Upload artwork');
+    console.log('  POST /api/submit        - Submit to DSPs');
+    console.log('  POST /api/wallet        - Set artist wallet');
+    console.log('  GET  /api/wallet/:name  - Get artist wallet');
+    console.log('  GET  /api/health        - Health check');
+  });
+}
+
+// Export for Vercel
+export default app;

@@ -4,6 +4,9 @@
   "description": "MCP server wrapping Ditto's music distribution APIs",
   "type": "module",
   "main": "dist/index.js",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
