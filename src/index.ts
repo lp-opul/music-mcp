@@ -71,12 +71,22 @@ const STORE_IDS: Record<string, number> = {
   instagram: 100,   // Same as TikTok (Meta)
 };
 
-function getStoreId(dsp: DSP): string | null {
+// Returns integer for submission API
+function getStoreId(dsp: DSP): number | null {
   const id = STORE_IDS[dsp];
-  if (id) {
-    return `/api/stores/${id}`;
+  if (id !== undefined) {
+    return id;
   }
   console.error(`[submit_release] Unknown DSP: ${dsp}`);
+  return null;
+}
+
+// Returns IRI string for filtering/query APIs
+function getStoreIri(dsp: DSP): string | null {
+  const id = STORE_IDS[dsp];
+  if (id !== undefined) {
+    return `/api/stores/${id}`;
+  }
   return null;
 }
 
@@ -763,12 +773,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const validated = submitReleaseSchema.parse(args);
         
         if (dittoClient) {
-          // Map DSP names to store IDs
-          const storeIds: string[] = [];
+          // Map DSP names to store IDs (as integers)
+          const storeIds: number[] = [];
+          console.error(`[submit_release] DSPs requested: ${JSON.stringify(validated.dsps)}`);
           for (const dsp of validated.dsps) {
             const storeId = getStoreId(dsp as DSP);
-            if (storeId) storeIds.push(storeId);
+            console.error(`[submit_release] ${dsp} → ${storeId}`);
+            if (storeId !== null) storeIds.push(storeId);
           }
+          console.error(`[submit_release] Final storeIds: ${JSON.stringify(storeIds)}`);
           
           const result = await dittoClient.submitToStores(validated.releaseId, storeIds);
           return {
@@ -833,7 +846,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const validated = earningsQuerySchema.parse(args);
         
         if (dittoClient) {
-          const storeId = validated.dsp ? getStoreId(validated.dsp as DSP) : undefined;
+          const storeId = validated.dsp ? getStoreIri(validated.dsp as DSP) : undefined;
           const result = await dittoClient.getEarnings({
             releaseId: validated.releaseId,
             trackId: validated.trackId,
@@ -862,7 +875,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const validated = streamsQuerySchema.parse(args);
         
         if (dittoClient) {
-          const storeId = validated.dsp ? getStoreId(validated.dsp as DSP) : undefined;
+          const storeId = validated.dsp ? getStoreIri(validated.dsp as DSP) : undefined;
           const result = await dittoClient.getStreams({
             releaseId: validated.releaseId,
             trackId: validated.trackId,
@@ -1329,10 +1342,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             steps.push(`📡 Submitting to ${validated.dsps.length} DSPs: ${validated.dsps.join(', ')}...`);
             console.error(`[release_ai_track] Step 6: Submitting to DSPs: ${validated.dsps.join(', ')}`);
             
-            const storeIds: string[] = [];
+            const storeIds: number[] = [];
             for (const dsp of validated.dsps) {
               const storeId = getStoreId(dsp as DSP);
-              if (storeId) storeIds.push(storeId);
+              if (storeId !== null) storeIds.push(storeId);
             }
             
             if (storeIds.length > 0) {

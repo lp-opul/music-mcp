@@ -493,12 +493,16 @@ export class DittoClient {
     return this.request('/api/lookup/stores');
   }
 
-  async submitToStores(releaseId: string, storeIds: string[]): Promise<any> {
+  async submitToStores(releaseId: string, storeIds: number[]): Promise<any> {
+    const requestBody = {
+      storeIds: storeIds,  // Integer array: [2, 63, 104]
+    };
+    console.error(`[Ditto] submitToStores - releaseId: ${releaseId}`);
+    console.error(`[Ditto] submitToStores - body: ${JSON.stringify(requestBody)}`);
+    
     return this.request(`/api/me/releases/${releaseId}/stores`, {
       method: 'POST',
-      body: JSON.stringify({
-        stores: storeIds,
-      }),
+      body: JSON.stringify(requestBody),
     });
   }
 
