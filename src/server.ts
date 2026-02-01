@@ -378,6 +378,16 @@ app.get('/api/wallet/:artistName', asyncHandler(async (req: Request, res: Respon
 // Health Check
 // ============================================
 
+// Root route
+app.get('/', (req: Request, res: Response) => {
+  res.json({
+    name: 'Distro API',
+    version: '1.0.0',
+    docs: 'POST /api/artist, /api/release, /api/generate, /api/upload-track, /api/submit',
+    health: '/api/health',
+  });
+});
+
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({
     status: 'ok',
