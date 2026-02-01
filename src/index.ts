@@ -10,6 +10,7 @@ import {
 import { z } from 'zod';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import sharp from 'sharp';
 
 import type { DSP, Split } from './types.js';
 import { createDittoClient, DittoClient } from './ditto-client.js';
@@ -362,7 +363,7 @@ const tools: Tool[] = [
   },
   {
     name: 'upload_artwork',
-    description: 'Upload artwork image to a release from a URL.',
+    description: 'Upload artwork image to a release. Accepts URL or base64. Auto-upscales to 1400x1400 if needed.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -370,12 +371,12 @@ const tools: Tool[] = [
           type: 'string',
           description: 'Release ID to add artwork to',
         },
-        imageUrl: {
+        artworkInput: {
           type: 'string',
-          description: 'URL to the image file (JPG or PNG)',
+          description: 'Image source: URL (https://...) or base64 data URI (data:image/png;base64,...)',
         },
       },
-      required: ['releaseId', 'imageUrl'],
+      required: ['releaseId', 'artworkInput'],
     },
   },
   {
@@ -569,7 +570,7 @@ const setSplitsSchema = z.object({
 
 const uploadArtworkSchema = z.object({
   releaseId: z.string(),
-  imageUrl: z.string(),
+  artworkInput: z.string(),
 });
 
 const generateArtworkSchema = z.object({
@@ -1001,9 +1002,84 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
         
-        const result = await dittoClient.uploadArtwork(validated.releaseId, validated.imageUrl);
+        const input = validated.artworkInput;
+        let imageBuffer: Buffer;
+        
+        // Step 1: Get image data from URL or base64
+        if (input.startsWith('data:')) {
+          // Base64 data URI - decode it
+          console.error('[upload_artwork] Processing base64 input...');
+          const base64Data = input.split(',')[1];
+          if (!base64Data) {
+            throw new Error('Invalid base64 data URI format');
+          }
+          imageBuffer = Buffer.from(base64Data, 'base64');
+        } else if (input.startsWith('http')) {
+          // URL - fetch it
+          console.error(`[upload_artwork] Fetching image from URL: ${input.slice(0, 50)}...`);
+          const response = await fetch(input);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.status}`);
+          }
+          const arrayBuffer = await response.arrayBuffer();
+          imageBuffer = Buffer.from(arrayBuffer);
+        } else {
+          throw new Error('artworkInput must be a URL (http...) or base64 data URI (data:image/...)');
+        }
+        
+        // Step 2: Check size and upscale if needed using sharp
+        console.error('[upload_artwork] Processing image with sharp...');
+        const image = sharp(imageBuffer);
+        const metadata = await image.metadata();
+        
+        const minSize = 1400;
+        const width = metadata.width || 0;
+        const height = metadata.height || 0;
+        
+        console.error(`[upload_artwork] Original size: ${width}x${height}`);
+        
+        let processedBuffer: Buffer;
+        if (width < minSize || height < minSize) {
+          // Upscale to 1400x1400 (maintaining aspect ratio, then crop to square)
+          console.error(`[upload_artwork] Upscaling to ${minSize}x${minSize}...`);
+          processedBuffer = await image
+            .resize(minSize, minSize, {
+              fit: 'cover',
+              position: 'center',
+            })
+            .jpeg({ quality: 95 })
+            .toBuffer();
+        } else if (width !== height) {
+          // Crop to square if not already
+          const size = Math.min(width, height);
+          console.error(`[upload_artwork] Cropping to ${size}x${size} square...`);
+          processedBuffer = await image
+            .resize(size, size, {
+              fit: 'cover',
+              position: 'center',
+            })
+            .jpeg({ quality: 95 })
+            .toBuffer();
+        } else {
+          // Already good, just ensure JPEG format
+          processedBuffer = await image.jpeg({ quality: 95 }).toBuffer();
+        }
+        
+        const finalMetadata = await sharp(processedBuffer).metadata();
+        console.error(`[upload_artwork] Final size: ${finalMetadata.width}x${finalMetadata.height}`);
+        
+        // Step 3: Upload processed image to Ditto
+        const result = await dittoClient.uploadArtworkBuffer(validated.releaseId, processedBuffer);
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              originalSize: `${width}x${height}`,
+              finalSize: `${finalMetadata.width}x${finalMetadata.height}`,
+              result,
+            }, null, 2),
+          }],
         };
       }
 
@@ -1287,6 +1363,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                   releaseDate: validated.releaseDate,
                   dspsSubmitted: validated.dsps || [],
                 },
+                // Suno-generated artwork - can be used with upload_artwork or provide your own
+                artworkUrl: generatedTrack.imageUrl,
                 sunoTrack: {
                   title: generatedTrack.title,
                   audioUrl: generatedTrack.audioUrl,
@@ -1295,6 +1373,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                   duration: generatedTrack.duration,
                 },
                 allGeneratedTracks: sunoResult.tracks,
+                hint: 'Use artworkUrl with upload_artwork, or provide your own image (1400x1400 min). Images will be auto-upscaled if needed.',
               }, null, 2),
             }],
           };

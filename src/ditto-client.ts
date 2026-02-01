@@ -405,6 +405,48 @@ export class DittoClient {
   }
 
   /**
+   * Upload artwork from a processed buffer (already resized/optimized)
+   */
+  async uploadArtworkBuffer(releaseId: string, imageBuffer: Buffer): Promise<any> {
+    const token = await this.authenticate();
+    
+    console.error(`[Ditto] Uploading artwork buffer (${imageBuffer.length} bytes)`);
+    
+    // Create FormData with the image buffer (convert to Uint8Array for Blob compatibility)
+    const imageBlob = new Blob([new Uint8Array(imageBuffer)], { type: 'image/jpeg' });
+    const formData = new FormData();
+    formData.append('file', imageBlob, 'artwork.jpg');
+    
+    // Upload to Ditto releases API
+    const uploadUrl = `${this.config.releasesUrl}/api/me/releases/${releaseId}/artworks`;
+    console.error(`[Ditto] Uploading artwork to: ${uploadUrl}`);
+    
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+    };
+    
+    if (this.basicAuthHeader) {
+      headers['X-Basic-Authorization'] = this.basicAuthHeader;
+    }
+    
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    
+    if (!uploadResponse.ok) {
+      const error = await uploadResponse.text();
+      throw new Error(`Failed to upload artwork: ${uploadResponse.status} - ${error}`);
+    }
+    
+    const result = await uploadResponse.json();
+    console.error(`[Ditto] Artwork uploaded successfully`);
+    return result;
+  }
+
+  /**
    * Generate AI artwork for a release
    * Uses Ditto's artgen service
    */
