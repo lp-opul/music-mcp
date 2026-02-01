@@ -228,7 +228,13 @@ export class DittoClient {
         const token = await this.authenticate();
         // Step 1: Download the audio file from the URL
         console.error(`[Ditto] Downloading audio from: ${audioUrl}`);
-        const audioResponse = await fetch(audioUrl);
+        let audioResponse = await fetch(audioUrl);
+        // If audioUrl fails with 403, try streamUrl (remove .mp3 extension)
+        if (audioResponse.status === 403 && audioUrl.endsWith('.mp3')) {
+            const streamUrl = audioUrl.replace('.mp3', '');
+            console.error(`[Ditto] audioUrl returned 403, trying streamUrl: ${streamUrl}`);
+            audioResponse = await fetch(streamUrl);
+        }
         if (!audioResponse.ok) {
             throw new Error(`Failed to download audio: ${audioResponse.status} ${audioResponse.statusText}`);
         }

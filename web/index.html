@@ -248,19 +248,72 @@
       return div;
     }
 
-    function addThinking() {
+    const statusMessages = [
+      '🤔 Thinking...',
+      '🎵 Working on it...',
+      '🎵 Generating your song (this may take a minute)...',
+      '🎵 Still creating... almost there...',
+      '🎵 Putting the finishing touches...',
+    ];
+    let statusIndex = 0;
+    let statusInterval = null;
+
+    function addStatus() {
+      // Remove welcome message
+      const welcome = messagesEl.querySelector('.welcome');
+      if (welcome) welcome.remove();
+
       const div = document.createElement('div');
       div.className = 'message assistant thinking';
-      div.id = 'thinking';
-      div.textContent = 'Thinking...';
+      div.id = 'status-message';
+      div.textContent = statusMessages[0];
       messagesEl.appendChild(div);
       messagesEl.scrollTop = messagesEl.scrollHeight;
+      
+      // Rotate through status messages
+      statusIndex = 0;
+      statusInterval = setInterval(() => {
+        statusIndex = Math.min(statusIndex + 1, statusMessages.length - 1);
+        div.textContent = statusMessages[statusIndex];
+      }, 8000);
+      
       return div;
     }
 
-    function removeThinking() {
-      const el = document.getElementById('thinking');
+    function removeStatus() {
+      if (statusInterval) {
+        clearInterval(statusInterval);
+        statusInterval = null;
+      }
+      const el = document.getElementById('status-message');
       if (el) el.remove();
+    }
+
+    // Poll for music generation
+    async function pollGeneration(pollUrl) {
+      const statusEl = document.getElementById('status-message');
+      
+      for (let i = 0; i < 30; i++) { // Max 2.5 minutes
+        await new Promise(r => setTimeout(r, 5000));
+        
+        const elapsed = (i + 1) * 5;
+        if (statusEl) statusEl.textContent = `🎵 Creating your song... (${elapsed}s)`;
+        
+        try {
+          const res = await fetch(pollUrl);
+          const data = await res.json();
+          
+          if (data.status === 'SUCCESS' && data.tracks && data.tracks.length > 0) {
+            return data.tracks[0]; // Return first track
+          }
+          if (data.status === 'FAILED') {
+            throw new Error('Generation failed');
+          }
+        } catch (e) {
+          console.error('Poll error:', e);
+        }
+      }
+      throw new Error('Generation timed out');
     }
 
     async function sendMessage() {
@@ -274,7 +327,7 @@
       addMessage('user', text);
       conversationHistory.push({ role: 'user', content: text });
       
-      addThinking();
+      addStatus();
 
       try {
         const response = await fetch('/api/chat', {
@@ -283,21 +336,71 @@
           body: JSON.stringify({ messages: conversationHistory }),
         });
 
-        removeThinking();
-
         if (!response.ok) {
-          const error = await response.json();
+          removeStatus();
+          const error = await response.json().catch(() => ({ error: 'Request failed' }));
           throw new Error(error.error || 'Request failed');
         }
 
         const data = await response.json();
         
-        // Add assistant response
-        addMessage('assistant', data.response);
-        conversationHistory.push({ role: 'assistant', content: data.response });
+        // Check if response mentions generation started (Claude's response about the task)
+        const responseText = data.response || '';
+        
+        // Check for pollUrl in the response (music generation in progress)
+        const pollUrlMatch = responseText.match(/pollUrl["\s:]+([^\s"]+)/);
+        const taskIdMatch = responseText.match(/taskId["\s:]+([a-f0-9]+)/);
+        
+        if (taskIdMatch && responseText.toLowerCase().includes('generat')) {
+          // Music is being generated - poll for it
+          const taskId = taskIdMatch[1];
+          const pollUrl = `https://distro-nu.vercel.app/api/generate/status/${taskId}`;
+          
+          addMessage('assistant', '🎵 Starting music generation... this takes about 60-90 seconds.');
+          conversationHistory.push({ role: 'assistant', content: '🎵 Starting music generation...' });
+          
+          try {
+            const track = await pollGeneration(pollUrl);
+            removeStatus();
+            
+            // Show the result
+            const resultMsg = `✅ Your song is ready!\n\n**${track.title}**\n🎧 [Listen to your track](${track.audioUrl})\n\nNow I'll set up the release...`;
+            addMessage('assistant', resultMsg);
+            conversationHistory.push({ role: 'assistant', content: resultMsg });
+            
+            // Auto-continue with the track info
+            conversationHistory.push({ 
+              role: 'user', 
+              content: `Great! The song "${track.title}" is ready. Audio URL: ${track.audioUrl} - Image URL: ${track.imageUrl}. Please continue setting up the release.`
+            });
+            
+            // Continue the flow
+            addStatus();
+            const continueRes = await fetch('/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ messages: conversationHistory }),
+            });
+            removeStatus();
+            
+            if (continueRes.ok) {
+              const continueData = await continueRes.json();
+              addMessage('assistant', continueData.response);
+              conversationHistory.push({ role: 'assistant', content: continueData.response });
+            }
+          } catch (genError) {
+            removeStatus();
+            addMessage('assistant', `Error generating music: ${genError.message}`, true);
+          }
+        } else {
+          // Normal response
+          removeStatus();
+          addMessage('assistant', responseText);
+          conversationHistory.push({ role: 'assistant', content: responseText });
+        }
 
       } catch (error) {
-        removeThinking();
+        removeStatus();
         addMessage('assistant', `Error: ${error.message}`, true);
       }
 

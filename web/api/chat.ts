@@ -149,8 +149,27 @@ const tools: Anthropic.Tool[] = [
   },
 ];
 
-// Call Distro API
-async function callDistroApi(toolName: string, input: any): Promise<any> {
+// Human-readable status messages for each tool
+const toolStatusMessages: Record<string, string> = {
+  create_artist: '🎤 Creating artist profile...',
+  get_artists: '📋 Getting artists...',
+  create_release: '💿 Setting up release...',
+  get_release_status: '📊 Checking release status...',
+  get_releases: '📋 Getting releases...',
+  generate_music: '🎵 Generating your song (this takes about 1 minute)...',
+  upload_track: '📤 Uploading track to release...',
+  upload_artwork: '🎨 Uploading artwork...',
+  submit_release: '🚀 Submitting to streaming platforms...',
+  set_wallet: '💰 Setting wallet address...',
+  get_wallet: '💰 Getting wallet info...',
+};
+
+// Call Distro API with status callback
+async function callDistroApi(
+  toolName: string, 
+  input: any, 
+  onStatus?: (msg: string) => void
+): Promise<any> {
   let endpoint: string;
   let method = 'POST';
   let body: any = input;
@@ -178,7 +197,7 @@ async function callDistroApi(toolName: string, input: any): Promise<any> {
       body = undefined;
       break;
     case 'generate_music': {
-      // Start async generation
+      // Start async generation - return immediately with taskId
       const genRes = await fetch(`${API_BASE}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -187,24 +206,14 @@ async function callDistroApi(toolName: string, input: any): Promise<any> {
       const genData = await genRes.json();
       if (!genRes.ok) throw new Error(genData.error || 'Generation failed');
       
-      const taskId = genData.taskId;
-      console.log(`[Generate] Started task ${taskId}, polling...`);
-      
-      // Poll for completion (max 2 minutes)
-      for (let i = 0; i < 24; i++) {
-        await new Promise(r => setTimeout(r, 5000)); // Wait 5s
-        const statusRes = await fetch(`${API_BASE}/api/generate/status/${taskId}`);
-        const statusData = await statusRes.json();
-        console.log(`[Generate] Poll ${i+1}: ${statusData.status}`);
-        
-        if (statusData.status === 'SUCCESS' && statusData.tracks) {
-          return statusData;
-        }
-        if (statusData.status === 'FAILED') {
-          throw new Error('Generation failed');
-        }
-      }
-      throw new Error('Generation timed out');
+      // Return immediately - frontend will poll
+      return {
+        success: true,
+        taskId: genData.taskId,
+        status: 'GENERATING',
+        message: 'Music generation started! This takes about 60-90 seconds.',
+        pollUrl: `${API_BASE}/api/generate/status/${genData.taskId}`,
+      };
     }
     case 'upload_track':
       endpoint = '/api/upload-track';
@@ -270,22 +279,156 @@ CREATING MUSIC FLOW:
 
 For lyrics: if provided, use them. Otherwise make instrumental.
 
+MUSIC GENERATION:
+When generate_music returns a taskId and status "GENERATING", include this EXACT format in your response:
+"Starting generation! taskId: {taskId}"
+The frontend will handle polling. Do NOT wait or check status yourself.
+
+AFTER MUSIC IS GENERATED:
+When you receive a message with "Audio URL:" - this is the generated track!
+You MUST call these tools IN ORDER:
+1. create_artist (with the artist name)
+2. create_release (with artistId from step 1, track title, release date 10 days out)
+3. upload_track (with releaseId from step 2, title, AND the audioUrl from the message - THIS IS CRITICAL)
+4. upload_artwork (with releaseId and imageUrl from the message)
+5. submit_release (with releaseId and dsps: ["spotify", "apple_music", "amazon_music", "youtube_music", "tidal", "tiktok", "deezer"])
+
+The audioUrl MUST be passed to upload_track. Without it, the release will have no music!
+
 URLS:
 - Release status/tracking: https://distro-nu.vercel.app/api/release/{releaseId}
 - Never show localhost URLs to users`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Handle CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Check if client wants streaming
+  const wantsStream = req.headers.accept?.includes('text/event-stream');
+  
+  if (wantsStream) {
+    // Set up SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    
+    const sendEvent = (event: string, data: any) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+    
+    try {
+      const { messages } = req.body;
+      if (!messages || !Array.isArray(messages)) {
+        sendEvent('error', { error: 'Messages array required' });
+        return res.end();
+      }
+
+      const anthropicMessages: Anthropic.MessageParam[] = messages.map((m: any) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
+
+      sendEvent('status', { message: '🤔 Thinking...' });
+
+      let response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        system: SYSTEM_PROMPT,
+        tools,
+        messages: anthropicMessages,
+      });
+
+      // Handle tool calls in a loop
+      while (response.stop_reason === 'tool_use') {
+        const toolUseBlocks = response.content.filter(
+          (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
+        );
+
+        // Show what Claude said before using tools
+        const textBlocks = response.content.filter(
+          (block): block is Anthropic.TextBlock => block.type === 'text'
+        );
+        if (textBlocks.length > 0) {
+          sendEvent('text', { text: textBlocks.map(b => b.text).join('\n') });
+        }
+
+        const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+        for (const toolUse of toolUseBlocks) {
+          const statusMsg = toolStatusMessages[toolUse.name] || `Running ${toolUse.name}...`;
+          sendEvent('status', { message: statusMsg });
+          
+          console.log(`[Tool] ${toolUse.name}:`, toolUse.input);
+          try {
+            const result = await callDistroApi(
+              toolUse.name, 
+              toolUse.input,
+              (msg) => sendEvent('status', { message: msg })
+            );
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: toolUse.id,
+              content: JSON.stringify(result),
+            });
+          } catch (error) {
+            sendEvent('status', { message: `❌ ${toolUse.name} failed` });
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: toolUse.id,
+              content: JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+              is_error: true,
+            });
+          }
+        }
+
+        sendEvent('status', { message: '🤔 Processing results...' });
+
+        // Continue conversation with tool results
+        response = await anthropic.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 4096,
+          system: SYSTEM_PROMPT,
+          tools,
+          messages: [
+            ...anthropicMessages,
+            { role: 'assistant', content: response.content },
+            { role: 'user', content: toolResults },
+          ],
+        });
+      }
+
+      // Extract final text response
+      const textBlocks = response.content.filter(
+        (block): block is Anthropic.TextBlock => block.type === 'text'
+      );
+      const responseText = textBlocks.map(b => b.text).join('\n');
+
+      sendEvent('done', { response: responseText });
+      return res.end();
+    } catch (error) {
+      console.error('Chat error:', error);
+      sendEvent('error', { error: error instanceof Error ? error.message : 'Internal error' });
+      return res.end();
+    }
+  }
+
+  // Non-streaming fallback
   try {
     const { messages } = req.body;
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Messages array required' });
     }
 
-    // Convert to Anthropic format
     const anthropicMessages: Anthropic.MessageParam[] = messages.map((m: any) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
