@@ -57,28 +57,27 @@ if (sunoClient) {
 }
 
 // DSP name to Ditto store ID mapping (populated on first use)
-let storeMapping: Map<string, string> | null = null;
+// Ditto store ID mapping (DSP name → store ID)
+const STORE_IDS: Record<string, number> = {
+  spotify: 2,
+  apple_music: 63,
+  amazon_music: 104,
+  youtube_music: 102,
+  tidal: 81,
+  tiktok: 100,      // Facebook/Meta
+  soundcloud: 92,
+  deezer: 16,
+  pandora: 85,      // Adding common ones
+  instagram: 100,   // Same as TikTok (Meta)
+};
 
-async function getStoreId(dsp: DSP): Promise<string | null> {
-  if (!dittoClient) return null;
-  
-  if (!storeMapping) {
-    try {
-      const stores = await dittoClient.getStores();
-      storeMapping = new Map();
-      for (const store of stores['hydra:member'] || stores) {
-        const name = store.name?.toLowerCase().replace(/\s+/g, '_');
-        if (name) {
-          storeMapping.set(name, store['@id'] || store.id);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load stores:', e);
-      return null;
-    }
+function getStoreId(dsp: DSP): string | null {
+  const id = STORE_IDS[dsp];
+  if (id) {
+    return `/api/stores/${id}`;
   }
-  
-  return storeMapping.get(dsp) || null;
+  console.error(`[submit_release] Unknown DSP: ${dsp}`);
+  return null;
 }
 
 // Tool definitions
@@ -767,7 +766,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           // Map DSP names to store IDs
           const storeIds: string[] = [];
           for (const dsp of validated.dsps) {
-            const storeId = await getStoreId(dsp as DSP);
+            const storeId = getStoreId(dsp as DSP);
             if (storeId) storeIds.push(storeId);
           }
           
@@ -834,7 +833,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const validated = earningsQuerySchema.parse(args);
         
         if (dittoClient) {
-          const storeId = validated.dsp ? await getStoreId(validated.dsp as DSP) : undefined;
+          const storeId = validated.dsp ? getStoreId(validated.dsp as DSP) : undefined;
           const result = await dittoClient.getEarnings({
             releaseId: validated.releaseId,
             trackId: validated.trackId,
@@ -863,7 +862,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const validated = streamsQuerySchema.parse(args);
         
         if (dittoClient) {
-          const storeId = validated.dsp ? await getStoreId(validated.dsp as DSP) : undefined;
+          const storeId = validated.dsp ? getStoreId(validated.dsp as DSP) : undefined;
           const result = await dittoClient.getStreams({
             releaseId: validated.releaseId,
             trackId: validated.trackId,
@@ -1332,7 +1331,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             
             const storeIds: string[] = [];
             for (const dsp of validated.dsps) {
-              const storeId = await getStoreId(dsp as DSP);
+              const storeId = getStoreId(dsp as DSP);
               if (storeId) storeIds.push(storeId);
             }
             

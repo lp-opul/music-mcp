@@ -159,7 +159,11 @@ export async function getWalletBalance(address: string): Promise<string> {
  * Check if Privy is configured
  */
 export function isWalletServiceConfigured(): boolean {
-  return !!(process.env.PRIVY_APP_ID && process.env.PRIVY_APP_SECRET);
+  const appId = process.env.PRIVY_APP_ID;
+  const appSecret = process.env.PRIVY_APP_SECRET;
+  console.error(`[Wallet] Config check - PRIVY_APP_ID: ${appId ? appId.slice(0, 8) + '...' : 'undefined'}`);
+  console.error(`[Wallet] Config check - PRIVY_APP_SECRET: ${appSecret ? 'set (' + appSecret.length + ' chars)' : 'undefined'}`);
+  return !!(appId && appSecret);
 }
 
 // Legacy export for backwards compatibility
