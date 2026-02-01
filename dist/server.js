@@ -148,12 +148,13 @@ app.get('/api/releases', asyncHandler(async (req, res) => {
 // ============================================
 /**
  * POST /api/generate - Generate music with Suno
+ * If wait=false, returns immediately with taskId for polling
  */
 app.post('/api/generate', asyncHandler(async (req, res) => {
     if (!sunoClient) {
         return res.status(503).json({ error: 'Suno client not configured. Set SUNO_API_KEY in .env' });
     }
-    const { prompt, style, lyrics, title, instrumental } = req.body;
+    const { prompt, style, lyrics, title, instrumental, wait } = req.body;
     if (!prompt && !lyrics) {
         return res.status(400).json({ error: 'prompt or lyrics is required' });
     }
@@ -165,7 +166,16 @@ app.post('/api/generate', asyncHandler(async (req, res) => {
         title,
         instrumental,
     });
-    // Wait for completion
+    // If wait=false, return immediately for async flow
+    if (wait === false) {
+        return res.json({
+            success: true,
+            taskId: task.taskId,
+            status: 'PENDING',
+            message: 'Generation started. Poll /api/generate/status/:taskId for results.',
+        });
+    }
+    // Wait for completion (default behavior)
     const result = await sunoClient.waitForCompletion(task.taskId);
     res.json({
         success: true,
@@ -178,6 +188,35 @@ app.post('/api/generate', asyncHandler(async (req, res) => {
             imageUrl: track.imageUrl,
             duration: track.duration,
         })),
+    });
+}));
+/**
+ * GET /api/generate/status/:taskId - Check generation status
+ */
+app.get('/api/generate/status/:taskId', asyncHandler(async (req, res) => {
+    if (!sunoClient) {
+        return res.status(503).json({ error: 'Suno client not configured' });
+    }
+    const taskId = req.params.taskId;
+    const details = await sunoClient.getGenerationDetails(taskId);
+    if (details.status === 'SUCCESS' && details.tracks && details.tracks.length > 0) {
+        return res.json({
+            success: true,
+            status: 'SUCCESS',
+            tracks: details.tracks.map(track => ({
+                id: track.id,
+                title: track.title,
+                audioUrl: track.audioUrl,
+                streamUrl: track.streamAudioUrl,
+                imageUrl: track.imageUrl,
+                duration: track.duration,
+            })),
+        });
+    }
+    res.json({
+        success: true,
+        status: details.status || 'PENDING',
+        message: details.status === 'SUCCESS' ? 'Complete but no tracks' : 'Still generating...',
     });
 }));
 // ============================================

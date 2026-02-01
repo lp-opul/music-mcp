@@ -177,9 +177,35 @@ async function callDistroApi(toolName: string, input: any): Promise<any> {
       method = 'GET';
       body = undefined;
       break;
-    case 'generate_music':
-      endpoint = '/api/generate';
-      break;
+    case 'generate_music': {
+      // Start async generation
+      const genRes = await fetch(`${API_BASE}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...input, wait: false }),
+      });
+      const genData = await genRes.json();
+      if (!genRes.ok) throw new Error(genData.error || 'Generation failed');
+      
+      const taskId = genData.taskId;
+      console.log(`[Generate] Started task ${taskId}, polling...`);
+      
+      // Poll for completion (max 2 minutes)
+      for (let i = 0; i < 24; i++) {
+        await new Promise(r => setTimeout(r, 5000)); // Wait 5s
+        const statusRes = await fetch(`${API_BASE}/api/generate/status/${taskId}`);
+        const statusData = await statusRes.json();
+        console.log(`[Generate] Poll ${i+1}: ${statusData.status}`);
+        
+        if (statusData.status === 'SUCCESS' && statusData.tracks) {
+          return statusData;
+        }
+        if (statusData.status === 'FAILED') {
+          throw new Error('Generation failed');
+        }
+      }
+      throw new Error('Generation timed out');
+    }
     case 'upload_track':
       endpoint = '/api/upload-track';
       break;
