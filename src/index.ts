@@ -16,10 +16,10 @@ import type { DSP, Split } from './types.js';
 import { createDittoClient, DittoClient } from './ditto-client.js';
 import { createSunoClient, SunoClient } from './suno-client.js';
 import {
-  createArtistWallet,
+  getOrCreateArtistWallet,
   getArtistWallet,
   getWalletBalance,
-  isCdpConfigured,
+  isWalletServiceConfigured,
 } from './wallet-service.js';
 import {
   createMockUploadResponse,
@@ -1268,10 +1268,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
           // Step 3b: Create/get wallet for artist
           let artistWallet: string | null = null;
-          if (isCdpConfigured()) {
+          if (isWalletServiceConfigured()) {
             steps.push(`💰 Setting up royalty wallet...`);
             console.error(`[release_ai_track] Step 3b: Creating wallet for ${validated.artistName}`);
-            artistWallet = await createArtistWallet(validated.artistName);
+            artistWallet = await getOrCreateArtistWallet(validated.artistName);
             if (artistWallet) {
               steps.push(`   ✅ Wallet: ${artistWallet.slice(0, 6)}...${artistWallet.slice(-4)}`);
             } else {
@@ -1400,7 +1400,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // ============================================
       case 'get_my_wallet': {
         const validated = getMyWalletSchema.parse(args);
-        const wallet = getArtistWallet(validated.artistName);
+        
+        // Get existing or create new wallet
+        const wallet = await getOrCreateArtistWallet(validated.artistName);
         
         if (wallet) {
           return {
@@ -1409,7 +1411,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: JSON.stringify({
                 artistName: validated.artistName,
                 walletAddress: wallet,
-                network: 'Base',
+                network: 'Ethereum',
                 message: `This is ${validated.artistName}'s wallet for receiving royalties.`,
               }, null, 2),
             }],
@@ -1422,7 +1424,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             text: JSON.stringify({
               artistName: validated.artistName,
               walletAddress: null,
-              message: 'No wallet found. A wallet will be created automatically when you release music.',
+              message: 'Wallet service not configured. Set PRIVY_APP_ID and PRIVY_APP_SECRET to enable wallets.',
             }, null, 2),
           }],
         };
@@ -1430,7 +1432,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'get_my_balance': {
         const validated = getMyBalanceSchema.parse(args);
-        const wallet = getArtistWallet(validated.artistName);
+        
+        // Get existing or create new wallet
+        const wallet = await getOrCreateArtistWallet(validated.artistName);
         
         if (!wallet) {
           return {
@@ -1438,7 +1442,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               type: 'text',
               text: JSON.stringify({
                 artistName: validated.artistName,
-                error: 'No wallet found for this artist. Release music first to create a wallet.',
+                error: 'Wallet service not configured. Set PRIVY_APP_ID and PRIVY_APP_SECRET.',
               }, null, 2),
             }],
           };
@@ -1453,7 +1457,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               artistName: validated.artistName,
               walletAddress: wallet,
               balance: balance,
-              network: 'Base',
+              network: 'Ethereum',
             }, null, 2),
           }],
         };

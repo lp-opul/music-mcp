@@ -1,6 +1,6 @@
-// CDP Wallet Service for artist royalty wallets
+// Privy Wallet Service for artist royalty wallets
 
-import { CdpClient } from "@coinbase/cdp-sdk";
+import { PrivyClient } from "@privy-io/server-auth";
 import fs from "fs";
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -10,34 +10,52 @@ const __dirname = dirname(__filename);
 
 const WALLET_FILE = join(__dirname, '..', 'artist-wallets.json');
 
-let cdpClient: CdpClient | null = null;
+let privyClient: PrivyClient | null = null;
 
-// Initialize CDP client lazily
-function getCdpClient(): CdpClient | null {
-  if (cdpClient) return cdpClient;
+// Initialize Privy client lazily
+function getPrivyClient(): PrivyClient | null {
+  if (privyClient) return privyClient;
   
-  // CDP SDK reads from env vars automatically:
-  // CDP_API_KEY_ID, CDP_API_KEY_SECRET, CDP_WALLET_SECRET
-  if (!process.env.CDP_API_KEY_ID || !process.env.CDP_API_KEY_SECRET) {
-    console.error('[Wallet] CDP credentials not configured');
+  const appId = process.env.PRIVY_APP_ID;
+  const appSecret = process.env.PRIVY_APP_SECRET;
+  
+  if (!appId || !appSecret) {
+    console.error('[Wallet] Privy credentials not configured (PRIVY_APP_ID, PRIVY_APP_SECRET)');
     return null;
   }
   
   try {
-    cdpClient = new CdpClient();
-    console.error('[Wallet] CDP client initialized');
-    return cdpClient;
+    privyClient = new PrivyClient(appId, appSecret);
+    console.error('[Wallet] Privy client initialized');
+    return privyClient;
   } catch (error) {
-    console.error('[Wallet] Failed to initialize CDP client:', error);
+    console.error('[Wallet] Failed to initialize Privy client:', error);
     return null;
   }
 }
 
+// Wallet data structure
+interface WalletData {
+  address: string;
+  privyUserId?: string;
+  createdAt: string;
+}
+
 // Load existing wallets from file
-function loadWallets(): Record<string, string> {
+function loadWallets(): Record<string, WalletData> {
   try {
     if (fs.existsSync(WALLET_FILE)) {
-      return JSON.parse(fs.readFileSync(WALLET_FILE, 'utf-8'));
+      const data = JSON.parse(fs.readFileSync(WALLET_FILE, 'utf-8'));
+      // Handle legacy format (string addresses) and new format (WalletData objects)
+      const normalized: Record<string, WalletData> = {};
+      for (const [key, value] of Object.entries(data)) {
+        if (typeof value === 'string') {
+          normalized[key] = { address: value, createdAt: 'legacy' };
+        } else {
+          normalized[key] = value as WalletData;
+        }
+      }
+      return normalized;
     }
   } catch (error) {
     console.error('[Wallet] Failed to load wallets:', error);
@@ -46,7 +64,7 @@ function loadWallets(): Record<string, string> {
 }
 
 // Save wallets to file
-function saveWallets(wallets: Record<string, string>) {
+function saveWallets(wallets: Record<string, WalletData>) {
   try {
     fs.writeFileSync(WALLET_FILE, JSON.stringify(wallets, null, 2));
     console.error('[Wallet] Wallets saved');
@@ -56,37 +74,44 @@ function saveWallets(wallets: Record<string, string>) {
 }
 
 /**
- * Create a wallet for an artist
- * Returns existing wallet if already created
+ * Get or create a wallet for an artist
+ * Returns existing wallet if already created, otherwise creates new one via Privy
  */
-export async function createArtistWallet(artistName: string): Promise<string | null> {
+export async function getOrCreateArtistWallet(artistName: string): Promise<string | null> {
   const wallets = loadWallets();
   const key = artistName.toLowerCase().trim();
   
   // Check if already exists
   if (wallets[key]) {
-    console.error(`[Wallet] Using existing wallet for "${artistName}": ${wallets[key]}`);
-    return wallets[key];
+    console.error(`[Wallet] Using existing wallet for "${artistName}": ${wallets[key].address}`);
+    return wallets[key].address;
   }
   
-  // Initialize CDP client
-  const cdp = getCdpClient();
-  if (!cdp) {
-    console.error('[Wallet] CDP not configured - skipping wallet creation');
+  // Initialize Privy client
+  const privy = getPrivyClient();
+  if (!privy) {
+    console.error('[Wallet] Privy not configured - skipping wallet creation');
     return null;
   }
   
   try {
-    // Create new wallet on Base
-    console.error(`[Wallet] Creating new wallet for "${artistName}"...`);
-    const account = await cdp.evm.createAccount();
+    console.error(`[Wallet] Creating new Privy wallet for "${artistName}"...`);
+    
+    // Create an Ethereum wallet using Privy's wallet API
+    const wallet = await privy.walletApi.create({
+      chainType: 'ethereum',
+    });
     
     // Store mapping
-    wallets[key] = account.address;
+    wallets[key] = {
+      address: wallet.address,
+      privyUserId: wallet.id,
+      createdAt: new Date().toISOString(),
+    };
     saveWallets(wallets);
     
-    console.error(`[Wallet] Created wallet for "${artistName}": ${account.address}`);
-    return account.address;
+    console.error(`[Wallet] Created wallet for "${artistName}": ${wallet.address}`);
+    return wallet.address;
   } catch (error) {
     console.error('[Wallet] Failed to create wallet:', error);
     return null;
@@ -94,43 +119,48 @@ export async function createArtistWallet(artistName: string): Promise<string | n
 }
 
 /**
- * Get wallet address for an artist
+ * Legacy function name - calls getOrCreateArtistWallet
+ */
+export async function createArtistWallet(artistName: string): Promise<string | null> {
+  return getOrCreateArtistWallet(artistName);
+}
+
+/**
+ * Get wallet address for an artist (without creating)
  */
 export function getArtistWallet(artistName: string): string | null {
   const wallets = loadWallets();
   const key = artistName.toLowerCase().trim();
-  return wallets[key] || null;
+  return wallets[key]?.address || null;
 }
 
 /**
  * List all artist wallets
  */
 export function listArtistWallets(): Record<string, string> {
-  return loadWallets();
+  const wallets = loadWallets();
+  const result: Record<string, string> = {};
+  for (const [key, data] of Object.entries(wallets)) {
+    result[key] = data.address;
+  }
+  return result;
 }
 
 /**
  * Get wallet balance (placeholder - implement with actual balance check)
  */
 export async function getWalletBalance(address: string): Promise<string> {
-  const cdp = getCdpClient();
-  if (!cdp) {
-    return 'CDP not configured';
-  }
-  
-  try {
-    // For now return placeholder - CDP SDK balance check would go here
-    // const balance = await cdp.evm.getBalance(address);
-    return '0.00 USDC';
-  } catch (error) {
-    console.error('[Wallet] Failed to get balance:', error);
-    return 'Error fetching balance';
-  }
+  // For now return placeholder
+  // Could integrate with ethers.js or viem to check actual balance
+  return '0.00 USDC';
 }
 
 /**
- * Check if CDP is configured
+ * Check if Privy is configured
  */
-export function isCdpConfigured(): boolean {
-  return !!(process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET);
+export function isWalletServiceConfigured(): boolean {
+  return !!(process.env.PRIVY_APP_ID && process.env.PRIVY_APP_SECRET);
 }
+
+// Legacy export for backwards compatibility
+export const isCdpConfigured = isWalletServiceConfigured;
