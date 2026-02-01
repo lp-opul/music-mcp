@@ -148,8 +148,14 @@ export class SunoClient {
       throw new Error(`Suno API error: ${result.msg || 'Unknown error'}`);
     }
 
+    // Log raw response for debugging
+    const status = result.data?.status || 'PENDING';
+    console.error(`[Suno] Raw status: ${status}, type: ${result.data?.type}`);
+
     // Parse tracks from sunoData in response
     const sunoData = result.data?.response?.sunoData || [];
+    console.error(`[Suno] Found ${sunoData.length} tracks in response`);
+    
     const tracks: SunoTrack[] = sunoData.map((track: any) => ({
       id: track.id,
       title: track.title,
@@ -162,7 +168,7 @@ export class SunoClient {
 
     return {
       taskId,
-      status: result.data?.status || 'PENDING',
+      status,
       tracks: tracks.length > 0 ? tracks : undefined,
       error: result.data?.errorMessage,
     };
@@ -190,7 +196,29 @@ export class SunoClient {
 
         // SUCCESS means all tracks are ready
         if (details.status === 'SUCCESS') {
-          return details;
+          // Verify we actually have tracks with audio URLs
+          if (details.tracks && details.tracks.length > 0) {
+            const hasValidAudio = details.tracks.some(t => t.audioUrl || t.streamAudioUrl);
+            if (hasValidAudio) {
+              // Brief cooldown to let CDN propagate (audio files may not be immediately accessible)
+              console.error(`[Suno] Generation complete! Waiting 5s for CDN propagation...`);
+              await new Promise(resolve => setTimeout(resolve, 5000));
+              
+              // Log track details for debugging
+              for (const track of details.tracks) {
+                console.error(`[Suno] Track: ${track.title}`);
+                console.error(`[Suno]   audioUrl: ${track.audioUrl || 'none'}`);
+                console.error(`[Suno]   streamAudioUrl: ${track.streamAudioUrl || 'none'}`);
+                console.error(`[Suno]   duration: ${track.duration}s`);
+              }
+              
+              return details;
+            } else {
+              console.error(`[Suno] SUCCESS but no valid audio URLs yet, continuing to poll...`);
+            }
+          } else {
+            console.error(`[Suno] SUCCESS but no tracks yet, continuing to poll...`);
+          }
         }
 
         // Check for failure statuses

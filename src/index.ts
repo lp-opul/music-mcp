@@ -1060,6 +1060,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Wait for completion
         const result = await sunoClient.waitForCompletion(task.taskId);
 
+        // Format tracks with clear URL info
+        const formattedTracks = result.tracks?.map(track => ({
+          id: track.id,
+          title: track.title,
+          duration: track.duration,
+          tags: track.tags,
+          // Primary audio URL (download/play)
+          audioUrl: track.audioUrl,
+          // Streaming URL (may work better for playback)
+          streamUrl: track.streamAudioUrl,
+          // Cover image
+          imageUrl: track.imageUrl,
+          // Recommendation: try streamUrl first, fall back to audioUrl
+          recommendedUrl: track.streamAudioUrl || track.audioUrl,
+        }));
+
         return {
           content: [{
             type: 'text',
@@ -1069,7 +1085,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               prompt: validated.prompt,
               style: validated.style,
               instrumental: validated.instrumental ?? false,
-              tracks: result.tracks,
+              trackCount: formattedTracks?.length || 0,
+              tracks: formattedTracks,
+              note: 'Use recommendedUrl for playback. If timeout occurs, try audioUrl directly.',
             }, null, 2),
           }],
         };
