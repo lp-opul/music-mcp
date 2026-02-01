@@ -126,15 +126,15 @@ app.post('/api/release', asyncHandler(async (req: Request, res: Response) => {
     copyrightYear,
   });
   
-  // Try to add artist to release separately
+  // Add artist to release via PUT
   const releaseId = result.id;
   const numericArtistId = parseInt(artistId.toString().match(/(\d+)$/)?.[1] || artistId, 10);
   
   try {
-    await dittoClient.addArtistToRelease(releaseId.toString(), numericArtistId);
-    console.log(`Added artist ${numericArtistId} to release ${releaseId}`);
-  } catch (err) {
-    console.error('Failed to add artist to release:', err);
+    const putResult = await dittoClient.addArtistToRelease(releaseId.toString(), numericArtistId);
+    console.log(`[Server] Artist link result:`, JSON.stringify(putResult, null, 2));
+  } catch (err: any) {
+    console.error('[Server] Failed to add artist to release:', err.message || err);
   }
   
   res.json({
@@ -226,17 +226,19 @@ app.post('/api/upload-track', asyncHandler(async (req: Request, res: Response) =
     return res.status(400).json({ error: 'releaseId, title, and audioUrl are required' });
   }
   
-  // Validate audio format
+  // Check audio format (allow .mp3 or .wav anywhere in URL, not just at end)
   const audioUrlLower = audioUrl.toLowerCase();
-  if (!audioUrlLower.endsWith('.mp3') && !audioUrlLower.endsWith('.wav')) {
-    return res.status(400).json({ error: 'Audio must be WAV or MP3 format' });
+  const isMp3 = audioUrlLower.includes('.mp3');
+  const isWav = audioUrlLower.includes('.wav');
+  if (!isMp3 && !isWav) {
+    return res.status(400).json({ error: 'Audio URL must contain .mp3 or .wav' });
   }
   
   // Extract release ID
   const releaseIdMatch = releaseId.toString().match(/\/(\d+)$/) || releaseId.toString().match(/^(\d+)$/);
   const cleanReleaseId = releaseIdMatch ? releaseIdMatch[1] : releaseId;
   
-  const fileExt = audioUrlLower.endsWith('.wav') ? 'wav' : 'mp3';
+  const fileExt = isWav ? 'wav' : 'mp3';
   
   const result = await dittoClient.createTrackWithAudio(
     cleanReleaseId,

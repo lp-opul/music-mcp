@@ -244,13 +244,18 @@ export class DittoClient {
 
   async addArtistToRelease(releaseId: string, artistId: number): Promise<any> {
     console.error(`[Ditto] Adding artist ${artistId} to release ${releaseId} via PUT`);
-    // Update release with artist via PUT
-    return this.request(`/api/me/releases/music/${releaseId}`, {
+    const payload = {
+      artists: [{ id: artistId, isPrimaryArtist: true }]
+    };
+    console.error(`[Ditto] PUT payload:`, JSON.stringify(payload));
+    
+    const result = await this.request(`/api/me/releases/music/${releaseId}`, {
       method: 'PUT',
-      body: JSON.stringify({ 
-        artists: [`/api/me/artists/${artistId}`]
-      }),
+      body: JSON.stringify(payload),
     });
+    
+    console.error(`[Ditto] PUT response:`, JSON.stringify(result));
+    return result;
   }
 
   async deleteRelease(id: string): Promise<void> {
