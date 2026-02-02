@@ -96,12 +96,20 @@ export class SunoClient {
         // Parse tracks from sunoData in response
         const sunoData = result.data?.response?.sunoData || [];
         console.error(`[Suno] Found ${sunoData.length} tracks in response`);
+        // Add cache-busting param to URLs to prevent stale cached 404s
+        const cacheBust = `_cb=${Date.now()}`;
+        const addCacheBust = (url) => {
+            if (!url)
+                return url;
+            const separator = url.includes('?') ? '&' : '?';
+            return `${url}${separator}${cacheBust}`;
+        };
         const tracks = sunoData.map((track) => ({
             id: track.id,
             title: track.title,
-            audioUrl: track.audioUrl,
-            streamAudioUrl: track.streamAudioUrl,
-            imageUrl: track.imageUrl,
+            audioUrl: addCacheBust(track.audioUrl),
+            streamAudioUrl: addCacheBust(track.streamAudioUrl),
+            imageUrl: addCacheBust(track.imageUrl),
             duration: track.duration,
             tags: track.tags,
         }));
