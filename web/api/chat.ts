@@ -339,6 +339,10 @@ When generate_music returns a taskId and status "GENERATING", include this EXACT
 "Starting generation! taskId: {taskId}"
 The frontend will handle polling. Do NOT wait or check status yourself.
 
+DISTRIBUTION TIMING:
+- After submission, releases typically go live within 7 days (can be faster)
+- Don't promise specific timeframes beyond this
+
 AFTER MUSIC IS GENERATED:
 When you receive a message with "Audio URL:" - this is the generated track!
 
