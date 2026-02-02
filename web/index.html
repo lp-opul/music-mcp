@@ -198,6 +198,14 @@
       margin-bottom: 4px;
     }
 
+    .audio-preview {
+      padding: 4px 0;
+    }
+
+    .audio-preview audio {
+      border-radius: 8px;
+    }
+
     /* Claude Desktop Integration Section */
     .integration-toggle {
       display: inline-block;
@@ -531,9 +539,28 @@ npm install && npm run build</code></pre>
             const track = await pollGeneration(pollUrl);
             removeStatus();
             
-            // Show the result - don't share Suno URL as it expires quickly
-            const resultMsg = `✅ Your song is ready!\n\n**${track.title}**\n\nNow I'll set up the release and you'll be able to preview it once it's live on streaming platforms...`;
+            // Show the result with audio player (URL is valid for ~10 mins after generation)
+            const resultMsg = `✅ Your song is ready!\n\n**${track.title}**`;
             addMessage('assistant', resultMsg);
+            
+            // Add audio player for immediate preview
+            if (track.audioUrl) {
+              const playerDiv = document.createElement('div');
+              playerDiv.className = 'message assistant';
+              playerDiv.innerHTML = `
+                <div class="audio-preview">
+                  <p style="margin-bottom: 10px;">🎧 <strong>Preview your track:</strong></p>
+                  <audio controls style="width: 100%; max-width: 400px;">
+                    <source src="${track.audioUrl}" type="audio/mpeg">
+                    Your browser doesn't support audio playback.
+                  </audio>
+                  <p style="margin-top: 8px; font-size: 12px; color: #888;">⏰ This preview expires in ~10 minutes. Your track will be permanently available once it's live on streaming platforms.</p>
+                </div>
+              `;
+              messagesEl.appendChild(playerDiv);
+              messagesEl.scrollTop = messagesEl.scrollHeight;
+            }
+            
             conversationHistory.push({ role: 'assistant', content: resultMsg });
             
             // Auto-continue with the track info (include taskId for the complete_release tool)
