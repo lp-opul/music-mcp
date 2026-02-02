@@ -110,14 +110,7 @@ app.post('/api/release', asyncHandler(async (req: Request, res: Response) => {
     ? artistId 
     : `/api/me/artists/${artistId}`;
   
-  console.log('Creating release with:', {
-    title,
-    artistIri,
-    artistName,
-    releaseDate,
-    copyrightHolder,
-    copyrightYear,
-  });
+  console.log(`[Release] Creating: ${title}`);
   
   const result = await dittoClient.createRelease({
     title,
@@ -133,8 +126,8 @@ app.post('/api/release', asyncHandler(async (req: Request, res: Response) => {
   const numericArtistId = parseInt(artistId.toString().match(/(\d+)$/)?.[1] || artistId, 10);
   
   try {
-    const putResult = await dittoClient.addArtistToRelease(releaseId.toString(), numericArtistId);
-    console.log(`[Server] Artist link result:`, JSON.stringify(putResult, null, 2));
+    await dittoClient.addArtistToRelease(releaseId.toString(), numericArtistId);
+    console.log(`[Release] Artist linked`);
   } catch (err: any) {
     console.error('[Server] Failed to add artist to release:', err.message || err);
   }
@@ -689,7 +682,7 @@ app.post('/api/release-full', asyncHandler(async (req: Request, res: Response) =
       audioBuffer,
       `${trackTitle.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`
     );
-    console.log(`[ReleaseFull] Track uploaded: ${JSON.stringify(trackResult)}`);
+    console.log(`[ReleaseFull] Track uploaded`);
   } catch (e) {
     console.error(`[ReleaseFull] Track upload failed: ${e}`);
     return res.status(500).json({ error: `Failed to upload track: ${e}` });
@@ -777,20 +770,18 @@ app.post('/api/submit', asyncHandler(async (req: Request, res: Response) => {
   }
   
   // Step 1: Set the stores
-  const storesResult = await dittoClient.submitToStores(releaseId, storeIds);
-  console.error(`[Submit] Stores set: ${JSON.stringify(storesResult)}`);
+  await dittoClient.submitToStores(releaseId, storeIds);
+  console.log(`[Submit] Stores set for release ${releaseId}`);
   
   // Step 2: Finalize/submit the release for review
-  const finalizeResult = await dittoClient.finalizeRelease(releaseId);
-  console.error(`[Submit] Finalize result: ${JSON.stringify(finalizeResult)}`);
+  await dittoClient.finalizeRelease(releaseId);
+  console.log(`[Submit] Release ${releaseId} finalized`);
   
   res.json({
     success: true,
     submitted: dsps.filter(d => STORE_IDS[d.toLowerCase()]),
     finalized: true,
     unknownDsps: unknownDsps.length > 0 ? unknownDsps : undefined,
-    stores: storesResult,
-    release: finalizeResult,
   });
 }));
 
@@ -865,9 +856,10 @@ app.get('/api/health', (req: Request, res: Response) => {
 // ============================================
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error('API Error:', err);
+  // Log only error name and message, not full stack or sensitive details
+  console.error('API Error:', err.name, '-', err.message?.substring(0, 100));
   res.status(500).json({
-    error: err.message || 'Internal server error',
+    error: 'An error occurred processing your request',
   });
 });
 

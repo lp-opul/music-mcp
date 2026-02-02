@@ -9,7 +9,6 @@ export class DittoClient {
         if (config.basicAuthUser && config.basicAuthPass) {
             const credentials = Buffer.from(`${config.basicAuthUser}:${config.basicAuthPass}`).toString('base64');
             this.basicAuthHeader = `Basic ${credentials}`;
-            console.error('✓ Basic Auth configured for QA environment');
         }
     }
     // Get headers with optional Basic Auth
@@ -74,12 +73,11 @@ export class DittoClient {
                 }),
             });
             if (!response.ok) {
-                throw new Error(`Auth failed. /authentication_token: ${firstError}. /api/login: ${await response.text()}`);
+                throw new Error(`Authentication failed - please check credentials`);
             }
         }
         if (!response.ok) {
-            const error = await response.text();
-            throw new Error(`Authentication failed: ${response.status} - ${error}`);
+            throw new Error(`Authentication failed - status ${response.status}`);
         }
         const data = await response.json();
         this.auth = {
@@ -156,7 +154,6 @@ export class DittoClient {
             pLine: copyrightHolder, // Phonographic Rights Holder (usually same)
             pLineYear: copyrightYear, // Production Year
         };
-        console.error('[Ditto] createRelease payload:', JSON.stringify(payload, null, 2));
         return this.request('/api/me/releases/music', {
             method: 'POST',
             body: JSON.stringify(payload),
@@ -175,17 +172,13 @@ export class DittoClient {
         });
     }
     async addArtistToRelease(releaseId, artistId) {
-        console.error(`[Ditto] Adding artist ${artistId} to release ${releaseId} via PUT`);
         const payload = {
             artists: [{ id: artistId, isPrimaryArtist: true }]
         };
-        console.error(`[Ditto] PUT payload:`, JSON.stringify(payload));
-        const result = await this.request(`/api/me/releases/music/${releaseId}`, {
+        return this.request(`/api/me/releases/music/${releaseId}`, {
             method: 'PUT',
             body: JSON.stringify(payload),
         });
-        console.error(`[Ditto] PUT response:`, JSON.stringify(result));
-        return result;
     }
     async deleteRelease(id) {
         await this.request(`/api/me/releases/music/${id}`, {
@@ -234,12 +227,11 @@ export class DittoClient {
     async createTrackWithAudio(releaseId, audioUrl, filename) {
         const token = await this.authenticate();
         // Step 1: Download the audio file from the URL
-        console.error(`[Ditto] Downloading audio from: ${audioUrl}`);
         let audioResponse = await fetch(audioUrl);
         // If audioUrl fails with 403, try streamUrl (remove .mp3 extension)
         if (audioResponse.status === 403 && audioUrl.endsWith('.mp3')) {
             const streamUrl = audioUrl.replace('.mp3', '');
-            console.error(`[Ditto] audioUrl returned 403, trying streamUrl: ${streamUrl}`);
+            // Try alternate URL on 403
             audioResponse = await fetch(streamUrl);
         }
         if (!audioResponse.ok) {
@@ -247,13 +239,11 @@ export class DittoClient {
         }
         const audioBuffer = await audioResponse.arrayBuffer();
         const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
-        console.error(`[Ditto] Downloaded ${audioBuffer.byteLength} bytes`);
         // Step 2: Create FormData with the audio file
         const formData = new FormData();
         formData.append('file', audioBlob, filename || 'track.mp3');
         // Step 3: Upload to Ditto releases API - creates track with audio
         const uploadUrl = `${this.config.releasesUrl}/api/me/releases/${releaseId}/tracks`;
-        console.error(`[Ditto] Creating track with audio at: ${uploadUrl}`);
         const headers = {
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/json',
@@ -271,7 +261,6 @@ export class DittoClient {
             throw new Error(`Failed to create track with audio: ${uploadResponse.status} - ${error}`);
         }
         const result = await uploadResponse.json();
-        console.error(`[Ditto] Track created with audio successfully`);
         return result;
     }
     /**
@@ -279,14 +268,12 @@ export class DittoClient {
      */
     async createTrackWithAudioBuffer(releaseId, audioBuffer, filename) {
         const token = await this.authenticate();
-        console.error(`[Ditto] Uploading ${audioBuffer.length} bytes as ${filename}`);
         // Create FormData with the audio file
         const formData = new FormData();
         const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: 'audio/mpeg' });
         formData.append('file', audioBlob, filename);
         // Upload to Ditto releases API
         const uploadUrl = `${this.config.releasesUrl}/api/me/releases/${releaseId}/tracks`;
-        console.error(`[Ditto] Creating track with audio at: ${uploadUrl}`);
         const headers = {
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/json',
@@ -304,7 +291,6 @@ export class DittoClient {
             throw new Error(`Failed to create track with audio: ${uploadResponse.status} - ${error}`);
         }
         const result = await uploadResponse.json();
-        console.error(`[Ditto] Track created with audio successfully`);
         return result;
     }
     // ============================================
@@ -317,7 +303,6 @@ export class DittoClient {
     async uploadArtwork(releaseId, imageUrl) {
         const token = await this.authenticate();
         // Step 1: Download the image file from the URL
-        console.error(`[Ditto] Downloading artwork from: ${imageUrl}`);
         const imageResponse = await fetch(imageUrl);
         if (!imageResponse.ok) {
             throw new Error(`Failed to download image: ${imageResponse.status} ${imageResponse.statusText}`);
@@ -325,14 +310,12 @@ export class DittoClient {
         const imageBuffer = await imageResponse.arrayBuffer();
         const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
         const imageBlob = new Blob([imageBuffer], { type: contentType });
-        console.error(`[Ditto] Downloaded ${imageBuffer.byteLength} bytes (${contentType})`);
         // Step 2: Create FormData with the image file
         const formData = new FormData();
         const extension = contentType.includes('png') ? 'png' : 'jpg';
         formData.append('file', imageBlob, `artwork.${extension}`);
         // Step 3: Upload to Ditto releases API
         const uploadUrl = `${this.config.releasesUrl}/api/me/releases/${releaseId}/artworks`;
-        console.error(`[Ditto] Uploading artwork to: ${uploadUrl}`);
         const headers = {
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/json',
@@ -350,7 +333,6 @@ export class DittoClient {
             throw new Error(`Failed to upload artwork: ${uploadResponse.status} - ${error}`);
         }
         const result = await uploadResponse.json();
-        console.error(`[Ditto] Artwork uploaded successfully`);
         return result;
     }
     /**
@@ -358,14 +340,12 @@ export class DittoClient {
      */
     async uploadArtworkBuffer(releaseId, imageBuffer) {
         const token = await this.authenticate();
-        console.error(`[Ditto] Uploading artwork buffer (${imageBuffer.length} bytes)`);
         // Create FormData with the image buffer (convert to Uint8Array for Blob compatibility)
         const imageBlob = new Blob([new Uint8Array(imageBuffer)], { type: 'image/jpeg' });
         const formData = new FormData();
         formData.append('file', imageBlob, 'artwork.jpg');
         // Upload to Ditto releases API
         const uploadUrl = `${this.config.releasesUrl}/api/me/releases/${releaseId}/artworks`;
-        console.error(`[Ditto] Uploading artwork to: ${uploadUrl}`);
         const headers = {
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/json',
@@ -383,7 +363,6 @@ export class DittoClient {
             throw new Error(`Failed to upload artwork: ${uploadResponse.status} - ${error}`);
         }
         const result = await uploadResponse.json();
-        console.error(`[Ditto] Artwork uploaded successfully`);
         return result;
     }
     /**
@@ -393,7 +372,6 @@ export class DittoClient {
     async generateArtwork(releaseId, prompt) {
         const token = await this.authenticate();
         const generateUrl = `${this.config.releasesUrl}/api/me/artgen/generate`;
-        console.error(`[Ditto] Generating artwork with prompt: "${prompt}"`);
         const headers = {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -415,7 +393,6 @@ export class DittoClient {
             throw new Error(`Failed to generate artwork: ${response.status} - ${error}`);
         }
         const result = await response.json();
-        console.error(`[Ditto] Artwork generated successfully`);
         return result;
     }
     // ============================================
@@ -428,8 +405,6 @@ export class DittoClient {
         const requestBody = {
             storeIds: storeIds, // Integer array: [2, 63, 104]
         };
-        console.error(`[Ditto] submitToStores - releaseId: ${releaseId}`);
-        console.error(`[Ditto] submitToStores - body: ${JSON.stringify(requestBody)}`);
         return this.request(`/api/me/releases/${releaseId}/stores`, {
             method: 'POST',
             body: JSON.stringify(requestBody),
@@ -448,18 +423,16 @@ export class DittoClient {
      * This changes the release status to "Submitted" (statusId: 8)
      */
     async finalizeRelease(releaseId) {
-        console.error(`[Ditto] Finalizing release ${releaseId}...`);
         // Try the submit endpoint first
         try {
             const submitResult = await this.request(`/api/me/releases/${releaseId}/submit`, {
                 method: 'POST',
                 body: JSON.stringify({}),
             });
-            console.error(`[Ditto] Submit endpoint succeeded`);
             return submitResult;
         }
         catch (e) {
-            console.error(`[Ditto] Submit endpoint failed: ${e}, trying status update...`);
+            // Try status update as fallback
         }
         // Fallback: try to PATCH the status directly
         try {
@@ -467,11 +440,9 @@ export class DittoClient {
                 method: 'PATCH',
                 body: JSON.stringify({ statusId: 8 }), // 8 = Submitted
             });
-            console.error(`[Ditto] Status PATCH succeeded`);
             return patchResult;
         }
         catch (e) {
-            console.error(`[Ditto] Status PATCH failed: ${e}`);
         }
         // Return current release state
         return this.getRelease(releaseId);
