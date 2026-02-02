@@ -1357,19 +1357,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           
           steps.push(`   ✅ Track created with audio (ID: ${trackId})`);
 
-          // Step 5b: Generate artwork (if requested)
+          // Step 5b: Upload artwork
+          // If artworkPrompt provided → generate custom via Ditto
+          // Otherwise → use Suno-generated artwork
           let artworkResult = null;
           if (validated.artworkPrompt) {
-            steps.push(`🎨 Generating AI artwork...`);
+            steps.push(`🎨 Generating custom AI artwork...`);
             console.error(`[release_ai_track] Step 5b: Generating artwork with prompt: ${validated.artworkPrompt}`);
             
             try {
               artworkResult = await dittoClient.generateArtwork(releaseId.toString(), validated.artworkPrompt);
-              steps.push(`   ✅ Artwork generated successfully`);
+              steps.push(`   ✅ Custom artwork generated`);
             } catch (artworkError) {
               const artworkErrorMsg = artworkError instanceof Error ? artworkError.message : String(artworkError);
-              steps.push(`   ⚠️ Artwork generation failed: ${artworkErrorMsg}`);
-              console.error(`[release_ai_track] Artwork error: ${artworkErrorMsg}`);
+              steps.push(`   ⚠️ Custom artwork failed: ${artworkErrorMsg}`);
+              console.error(`[release_ai_track] Custom artwork error: ${artworkErrorMsg}`);
+            }
+          } else if (generatedTrack.imageUrl) {
+            // Auto-upload Suno artwork
+            steps.push(`🎨 Uploading Suno-generated artwork...`);
+            console.error(`[release_ai_track] Step 5b: Uploading Suno artwork from ${generatedTrack.imageUrl}`);
+            
+            try {
+              artworkResult = await dittoClient.uploadArtwork(releaseId.toString(), generatedTrack.imageUrl);
+              steps.push(`   ✅ Artwork uploaded`);
+            } catch (artworkError) {
+              const artworkErrorMsg = artworkError instanceof Error ? artworkError.message : String(artworkError);
+              steps.push(`   ⚠️ Artwork upload failed: ${artworkErrorMsg}`);
+              console.error(`[release_ai_track] Artwork upload error: ${artworkErrorMsg}`);
             }
           }
 
@@ -1412,8 +1427,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                   releaseDate: validated.releaseDate,
                   dspsSubmitted: validated.dsps || [],
                 },
-                // Suno-generated artwork - can be used with upload_artwork or provide your own
-                artworkUrl: generatedTrack.imageUrl,
+                artworkUploaded: artworkResult !== null,
                 sunoTrack: {
                   title: generatedTrack.title,
                   audioUrl: generatedTrack.audioUrl,
@@ -1422,7 +1436,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                   duration: generatedTrack.duration,
                 },
                 allGeneratedTracks: sunoResult.tracks,
-                hint: 'Use artworkUrl with upload_artwork, or provide your own image (1400x1400 min).',
                 walletNote: artistWallet ? null : 'No wallet set for royalties. Use set_wallet to add one.',
               }, null, 2),
             }],
