@@ -64,7 +64,7 @@ app.post('/release', async (req, res) => {
             title,
             artistId,
             releaseDate,
-            copyrightLine: copyrightHolder,
+            copyrightHolder: copyrightHolder,
             copyrightYear,
         });
         res.json({

@@ -789,7 +789,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             artistId: validated.artistId,
             releaseDate: validated.releaseDate,
             upc: validated.upc,
-            copyrightLine: validated.copyrightHolder,
+            copyrightHolder: validated.copyrightHolder,
             copyrightYear: validated.copyrightYear,
           });
           return {
@@ -1336,7 +1336,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             title: validated.trackTitle,
             artistId: artistIri,
             releaseDate: validated.releaseDate,
-            copyrightLine: validated.artistName,
+            copyrightHolder: validated.artistName,
             copyrightYear: new Date().getFullYear(),
           });
           const releaseId = releaseResult.id;

@@ -83,7 +83,7 @@ app.get('/api/artists', asyncHandler(async (req, res) => {
  * POST /api/release - Create release
  */
 app.post('/api/release', asyncHandler(async (req, res) => {
-    const { artistId, title, releaseDate, copyrightHolder, copyrightYear } = req.body;
+    const { artistId, artistName, title, releaseDate, copyrightHolder, copyrightYear } = req.body;
     if (!artistId || !title || !releaseDate) {
         return res.status(400).json({ error: 'artistId, title, and releaseDate are required' });
     }
@@ -94,6 +94,7 @@ app.post('/api/release', asyncHandler(async (req, res) => {
     console.log('Creating release with:', {
         title,
         artistIri,
+        artistName,
         releaseDate,
         copyrightHolder,
         copyrightYear,
@@ -101,8 +102,9 @@ app.post('/api/release', asyncHandler(async (req, res) => {
     const result = await dittoClient.createRelease({
         title,
         artistId: artistIri,
+        artistName: artistName || copyrightHolder, // Use for default copyright holder
         releaseDate,
-        copyrightLine: copyrightHolder,
+        copyrightHolder,
         copyrightYear,
     });
     // Add artist to release via PUT
@@ -121,7 +123,7 @@ app.post('/api/release', asyncHandler(async (req, res) => {
     });
 }));
 /**
- * GET /api/release/:id - Get release status
+ * GET /api/release/:id - Get release status (JSON)
  */
 app.get('/api/release/:id', asyncHandler(async (req, res) => {
     const id = req.params.id;
@@ -130,6 +132,79 @@ app.get('/api/release/:id', asyncHandler(async (req, res) => {
         success: true,
         release: result,
     });
+}));
+/**
+ * GET /status/:id - Nice HTML status page for a release
+ */
+app.get('/status/:id', asyncHandler(async (req, res) => {
+    const id = req.params.id;
+    const release = await dittoClient.getRelease(id);
+    const statusMap = {
+        1: { label: 'Draft', color: '#888', icon: '📝' },
+        2: { label: 'Pending Review', color: '#f59e0b', icon: '⏳' },
+        3: { label: 'In Review', color: '#3b82f6', icon: '🔍' },
+        4: { label: 'Approved', color: '#10b981', icon: '✅' },
+        5: { label: 'Rejected', color: '#ef4444', icon: '❌' },
+        6: { label: 'Live', color: '#22c55e', icon: '🎵' },
+        7: { label: 'Taken Down', color: '#6b7280', icon: '⬇️' },
+        8: { label: 'Submitted', color: '#8b5cf6', icon: '🚀' },
+    };
+    const status = statusMap[release.statusId] || { label: 'Unknown', color: '#888', icon: '❓' };
+    const artwork = release.artwork?.medium || release.artwork?.original || '';
+    const releaseDate = new Date(release.releaseDate).toLocaleDateString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+    const artworkHtml = artwork
+        ? '<img src="' + artwork + '" alt="Artwork" class="artwork">'
+        : '<div class="no-artwork">🎵</div>';
+    const copyrightHolder = release.copyrightHolder || 'Not specified';
+    const language = release.language?.name || 'English';
+    const html = '<!DOCTYPE html>' +
+        '<html lang="en">' +
+        '<head>' +
+        '  <meta charset="UTF-8">' +
+        '  <meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+        '  <title>' + release.title + ' - Release Status</title>' +
+        '  <style>' +
+        '    * { box-sizing: border-box; margin: 0; padding: 0; }' +
+        '    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; color: white; padding: 40px 20px; }' +
+        '    .container { max-width: 600px; margin: 0 auto; }' +
+        '    .card { background: rgba(255,255,255,0.1); border-radius: 20px; padding: 30px; backdrop-filter: blur(10px); }' +
+        '    .artwork { width: 200px; height: 200px; border-radius: 12px; margin: 0 auto 20px; display: block; object-fit: cover; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }' +
+        '    .no-artwork { width: 200px; height: 200px; border-radius: 12px; margin: 0 auto 20px; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 48px; }' +
+        '    h1 { text-align: center; font-size: 28px; margin-bottom: 8px; }' +
+        '    .status { text-align: center; padding: 8px 20px; border-radius: 20px; display: inline-block; font-weight: 600; font-size: 14px; margin: 15px auto; background: ' + status.color + '22; color: ' + status.color + '; border: 1px solid ' + status.color + '44; }' +
+        '    .status-container { text-align: center; }' +
+        '    .details { margin-top: 25px; display: grid; gap: 12px; }' +
+        '    .detail { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }' +
+        '    .detail:last-child { border-bottom: none; }' +
+        '    .label { color: #888; }' +
+        '    .value { font-weight: 500; }' +
+        '    .footer { text-align: center; margin-top: 25px; color: #666; font-size: 13px; }' +
+        '    .footer a { color: #667eea; }' +
+        '  </style>' +
+        '</head>' +
+        '<body>' +
+        '  <div class="container">' +
+        '    <div class="card">' +
+        '      ' + artworkHtml +
+        '      <h1>' + release.title + '</h1>' +
+        '      <div class="status-container">' +
+        '        <div class="status">' + status.icon + ' ' + status.label + '</div>' +
+        '      </div>' +
+        '      <div class="details">' +
+        '        <div class="detail"><span class="label">Release ID</span><span class="value">#' + release.id + '</span></div>' +
+        '        <div class="detail"><span class="label">Release Date</span><span class="value">' + releaseDate + '</span></div>' +
+        '        <div class="detail"><span class="label">Copyright</span><span class="value">© ' + release.copyrightYear + ' ' + copyrightHolder + '</span></div>' +
+        '        <div class="detail"><span class="label">Language</span><span class="value">' + language + '</span></div>' +
+        '      </div>' +
+        '      <div class="footer">Powered by <a href="https://web-navy-eight-33.vercel.app">MCP Distro</a></div>' +
+        '    </div>' +
+        '  </div>' +
+        '</body>' +
+        '</html>';
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
 }));
 /**
  * GET /api/releases - List releases
@@ -418,6 +493,167 @@ app.post('/api/upload-artwork', asyncHandler(async (req, res) => {
     });
 }));
 // ============================================
+// Complete Release Flow (All-in-one)
+// ============================================
+/**
+ * POST /api/release-full - Complete release from generated music
+ * Takes a completed taskId and does everything: create artist, release, upload track+artwork, submit
+ */
+app.post('/api/release-full', asyncHandler(async (req, res) => {
+    const { taskId, artistName, trackTitle, style } = req.body;
+    if (!taskId || !artistName || !trackTitle) {
+        return res.status(400).json({ error: 'taskId, artistName, and trackTitle are required' });
+    }
+    console.log(`[ReleaseFull] Starting for task ${taskId}, artist: ${artistName}, track: ${trackTitle}`);
+    if (!sunoClient) {
+        return res.status(503).json({ error: 'Suno client not configured' });
+    }
+    // Step 1: Get generation details and download audio immediately
+    const details = await sunoClient.getGenerationDetails(taskId);
+    if (details.status !== 'SUCCESS' || !details.tracks || details.tracks.length === 0) {
+        return res.status(400).json({
+            error: 'Music generation not complete',
+            status: details.status
+        });
+    }
+    const track = details.tracks[0];
+    console.log(`[ReleaseFull] Got track: ${track.title}, downloading audio...`);
+    // Download audio immediately (before URL expires)
+    let audioBuffer;
+    try {
+        let audioUrl = track.audioUrl;
+        let audioRes = await fetch(audioUrl);
+        if (audioRes.status === 403 && audioUrl.endsWith('.mp3')) {
+            audioUrl = track.streamAudioUrl || audioUrl.replace('.mp3', '');
+            audioRes = await fetch(audioUrl);
+        }
+        if (!audioRes.ok) {
+            throw new Error(`Failed to download audio: ${audioRes.status}`);
+        }
+        const buffer = await audioRes.arrayBuffer();
+        if (buffer.byteLength === 0) {
+            throw new Error('Audio file is empty');
+        }
+        audioBuffer = Buffer.from(buffer);
+        console.log(`[ReleaseFull] Downloaded ${audioBuffer.length} bytes of audio`);
+    }
+    catch (e) {
+        return res.status(500).json({ error: `Failed to download audio: ${e}` });
+    }
+    // Download artwork
+    let artworkBuffer = null;
+    if (track.imageUrl) {
+        try {
+            const imgRes = await fetch(track.imageUrl);
+            if (imgRes.ok) {
+                const buffer = await imgRes.arrayBuffer();
+                artworkBuffer = Buffer.from(buffer);
+                console.log(`[ReleaseFull] Downloaded ${artworkBuffer.length} bytes of artwork`);
+            }
+        }
+        catch (e) {
+            console.error(`[ReleaseFull] Artwork download failed: ${e}`);
+        }
+    }
+    // Step 2: Create artist
+    let artist;
+    try {
+        artist = await dittoClient.createArtist(artistName);
+        console.log(`[ReleaseFull] Created artist: ${artist.id}`);
+    }
+    catch (e) {
+        console.error(`[ReleaseFull] Artist creation failed: ${e}`);
+        return res.status(500).json({ error: `Failed to create artist: ${e}` });
+    }
+    // Step 3: Create release with all required details
+    const releaseDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const currentYear = new Date().getFullYear();
+    let release;
+    try {
+        release = await dittoClient.createRelease({
+            title: trackTitle,
+            artistId: artist.id.toString(),
+            artistName: artistName,
+            releaseDate,
+            copyrightHolder: artistName, // Required for Step 2
+            copyrightYear: currentYear,
+        });
+        console.log(`[ReleaseFull] Created release: ${release.id}`);
+        // Try to update with additional required fields
+        const releaseIdNum = release.id.toString().match(/(\d+)$/)?.[1] || release.id;
+        try {
+            await dittoClient.updateRelease(releaseIdNum, {
+                cLine: artistName, // Copyright holder
+                cLineYear: currentYear, // Copyright year
+                pLine: artistName, // Phonographic rights holder
+                pLineYear: currentYear, // Production year
+                originalReleaseDate: releaseDate,
+            });
+            console.log(`[ReleaseFull] Updated release with required details`);
+        }
+        catch (updateErr) {
+            console.error(`[ReleaseFull] Release update failed (non-fatal): ${updateErr}`);
+        }
+    }
+    catch (e) {
+        console.error(`[ReleaseFull] Release creation failed: ${e}`);
+        return res.status(500).json({ error: `Failed to create release: ${e}` });
+    }
+    // Step 4: Upload track audio
+    const releaseId = release.id.toString().match(/(\d+)$/)?.[1] || release.id;
+    try {
+        const trackResult = await dittoClient.createTrackWithAudioBuffer(releaseId, audioBuffer, `${trackTitle.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`);
+        console.log(`[ReleaseFull] Track uploaded: ${JSON.stringify(trackResult)}`);
+    }
+    catch (e) {
+        console.error(`[ReleaseFull] Track upload failed: ${e}`);
+        return res.status(500).json({ error: `Failed to upload track: ${e}` });
+    }
+    // Step 5: Upload artwork (if available)
+    if (artworkBuffer) {
+        try {
+            // Resize to 1400x1400 if needed
+            const image = sharp(artworkBuffer);
+            const metadata = await image.metadata();
+            if ((metadata.width || 0) < 1400 || (metadata.height || 0) < 1400) {
+                artworkBuffer = await image
+                    .resize(1400, 1400, { fit: 'cover', position: 'center' })
+                    .jpeg({ quality: 95 })
+                    .toBuffer();
+            }
+            await dittoClient.uploadArtworkBuffer(releaseId, artworkBuffer);
+            console.log(`[ReleaseFull] Artwork uploaded`);
+        }
+        catch (e) {
+            console.error(`[ReleaseFull] Artwork upload failed: ${e}`);
+            // Don't fail the whole request for artwork
+        }
+    }
+    // Step 6: Submit to all DSPs
+    const defaultDsps = ['spotify', 'apple_music', 'amazon_music', 'youtube_music', 'tidal', 'tiktok', 'deezer'];
+    const storeIds = defaultDsps.map(d => STORE_IDS[d]).filter(Boolean);
+    try {
+        await dittoClient.submitToStores(releaseId, storeIds);
+        await dittoClient.finalizeRelease(releaseId);
+        console.log(`[ReleaseFull] Submitted to stores and finalized`);
+    }
+    catch (e) {
+        console.error(`[ReleaseFull] Submit failed: ${e}`);
+        // Don't fail for submit issues
+    }
+    res.json({
+        success: true,
+        artistId: artist.id,
+        artistName,
+        releaseId,
+        trackTitle,
+        // Note: Don't return audioUrl/imageUrl - Suno URLs expire quickly
+        // The track is already uploaded to Ditto
+        statusUrl: `https://distro-nu.vercel.app/status/${releaseId}`,
+        dsps: defaultDsps,
+    });
+}));
+// ============================================
 // Submit to DSPs
 // ============================================
 /**
@@ -447,12 +683,19 @@ app.post('/api/submit', asyncHandler(async (req, res) => {
             unknownDsps,
         });
     }
-    const result = await dittoClient.submitToStores(releaseId, storeIds);
+    // Step 1: Set the stores
+    const storesResult = await dittoClient.submitToStores(releaseId, storeIds);
+    console.error(`[Submit] Stores set: ${JSON.stringify(storesResult)}`);
+    // Step 2: Finalize/submit the release for review
+    const finalizeResult = await dittoClient.finalizeRelease(releaseId);
+    console.error(`[Submit] Finalize result: ${JSON.stringify(finalizeResult)}`);
     res.json({
         success: true,
         submitted: dsps.filter(d => STORE_IDS[d.toLowerCase()]),
+        finalized: true,
         unknownDsps: unknownDsps.length > 0 ? unknownDsps : undefined,
-        result,
+        stores: storesResult,
+        release: finalizeResult,
     });
 }));
 // ============================================

@@ -36,12 +36,13 @@ const tools: Anthropic.Tool[] = [
       type: 'object' as const,
       properties: {
         artistId: { type: 'string', description: 'Artist ID' },
+        artistName: { type: 'string', description: 'Artist name (used for copyright)' },
         title: { type: 'string', description: 'Release title' },
         releaseDate: { type: 'string', description: 'Release date (YYYY-MM-DD, 7+ days out)' },
-        copyrightHolder: { type: 'string', description: 'Copyright holder name' },
-        copyrightYear: { type: 'number', description: 'Copyright year' },
+        copyrightHolder: { type: 'string', description: 'Copyright holder name (defaults to artist)' },
+        copyrightYear: { type: 'number', description: 'Copyright year (defaults to current year)' },
       },
-      required: ['artistId', 'title', 'releaseDate'],
+      required: ['artistId', 'artistName', 'title', 'releaseDate'],
     },
   },
   {
@@ -122,6 +123,20 @@ const tools: Anthropic.Tool[] = [
         },
       },
       required: ['releaseId', 'dsps'],
+    },
+  },
+  {
+    name: 'complete_release',
+    description: 'Complete the full release process from generated music - creates artist, release, uploads track and artwork, submits to all platforms. Use this after music generation is complete.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        taskId: { type: 'string', description: 'Generation task ID' },
+        artistName: { type: 'string', description: 'Artist name' },
+        trackTitle: { type: 'string', description: 'Track title' },
+        style: { type: 'string', description: 'Music style (optional)' },
+      },
+      required: ['taskId', 'artistName', 'trackTitle'],
     },
   },
   {
@@ -224,6 +239,9 @@ async function callDistroApi(
     case 'submit_release':
       endpoint = '/api/submit';
       break;
+    case 'complete_release':
+      endpoint = '/api/release-full';
+      break;
     case 'set_wallet':
       endpoint = '/api/wallet';
       break;
@@ -260,7 +278,7 @@ IMPORTANT:
 - The API handles all authentication behind the scenes
 
 INTENT HANDLING:
-- Clear intent to CREATE ("make a beat", "create a song", "generate music") → ask genre/style, then proceed
+- Clear intent to CREATE ("make a beat", "create a song", "generate music") → ask for artist name first
 - Clear intent with EXISTING track ("I have a song to upload") → ask for the audio URL
 - Ambiguous ("release a song", "distribute my music") → ask: "Do you have a track ready, or want me to create one?"
 
@@ -268,16 +286,53 @@ RULES:
 - Ask ONE question at a time
 - Keep responses short (2-3 sentences max)
 - Be natural and conversational - vary your responses
-- When you have enough info, USE THE TOOLS immediately
+- NEVER generate music without asking for artist name and track title first!
 - Don't repeat the same questions verbatim
 
-CREATING MUSIC FLOW:
-1. Genre/style/vibe
-2. Artist name
-3. Track title
-4. Then: generate_music → create_artist → create_release → upload_track → upload_artwork → submit_release
+REQUIRED INFO BEFORE GENERATING:
+You need these 4 things before calling generate_music:
+1. Style/genre (can be vague like "lofi" or "chill beats")
+2. Lyrics or instrumental? Ask: "Do you have lyrics, or should I make it instrumental?"
+   - If they provide lyrics → use them, check if explicit (profanity, adult themes)
+   - If instrumental → set explicit=false
+3. Artist name (MUST ASK - e.g. "What artist name should we release this under?")
+4. Track title (MUST ASK - e.g. "What should we call this track?")
 
-For lyrics: if provided, use them. Otherwise make instrumental.
+CREATIVE FLOW - BE CONVERSATIONAL:
+
+Help them create their song step by step. Ask naturally, one question at a time:
+
+1. GENRE/STYLE - "What kind of music are you feeling?"
+   
+2. LYRICS - If they want lyrics:
+   - "What should the song be about?" (theme, story, emotion)
+   - "Any specific mood - upbeat, emotional, reflective?"
+   - Help them develop the concept, suggest ideas if they're stuck
+   - Once you have the theme/mood, write the lyrics and SHOW THEM FIRST
+   - Ask: "Here are the lyrics - want me to make any changes?"
+   - After lyrics are approved, ask: "Male or female vocalist? And any vocal style preference (e.g., raspy, smooth, powerful, soft)?"
+   - Only generate after they've chosen the vocalist
+   
+3. ARTIST NAME - "What name should we release this under?"
+
+4. TRACK TITLE - "What should we call it?" (can suggest based on theme)
+
+Be creative and collaborative! If they say "I want lyrics about heartbreak" - ask follow-up questions like "Tell me more - is this about moving on, or still in the pain?" 
+
+Build the song concept WITH them before generating.
+
+DO NOT call generate_music until you have: genre, lyrics OR instrumental, artist name, track title.
+
+When generating with lyrics:
+- Use customMode=true, put lyrics in the prompt field
+- In the style field, include: genre + vocalist (e.g., "country, female vocalist, smooth voice")
+- Check your lyrics for explicit content → set explicit accordingly
+
+VOCALIST OPTIONS to offer:
+- Male vocalist (can add: raspy, smooth, deep, powerful, soft)
+- Female vocalist (can add: raspy, smooth, powerful, soft, ethereal)
+- Duet (male and female)
+- No vocals / instrumental
 
 MUSIC GENERATION:
 When generate_music returns a taskId and status "GENERATING", include this EXACT format in your response:
@@ -286,17 +341,18 @@ The frontend will handle polling. Do NOT wait or check status yourself.
 
 AFTER MUSIC IS GENERATED:
 When you receive a message with "Audio URL:" - this is the generated track!
-You MUST call these tools IN ORDER:
-1. create_artist (with the artist name)
-2. create_release (with artistId from step 1, track title, release date 10 days out)
-3. upload_track (with releaseId from step 2, title, AND the audioUrl from the message - THIS IS CRITICAL)
-4. upload_artwork (with releaseId and imageUrl from the message)
-5. submit_release (with releaseId and dsps: ["spotify", "apple_music", "amazon_music", "youtube_music", "tidal", "tiktok", "deezer"])
 
-The audioUrl MUST be passed to upload_track. Without it, the release will have no music!
+Call the complete_release tool with:
+- taskId (from the generation)
+- artistName (the artist name they chose)
+- trackTitle (the track title they chose)
+
+This tool handles EVERYTHING in one call: creates artist, release, uploads audio + artwork, submits to all platforms.
+
+DO NOT call individual tools (create_artist, create_release, upload_track, etc.) - use complete_release instead!
 
 URLS:
-- Release status/tracking: https://distro-nu.vercel.app/api/release/{releaseId}
+- Release status/tracking: https://distro-nu.vercel.app/status/{releaseId}
 - Never show localhost URLs to users`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -442,6 +498,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       messages: anthropicMessages,
     });
 
+    // Track if music generation was started
+    let generationTaskId: string | null = null;
+
     // Handle tool calls in a loop
     while (response.stop_reason === 'tool_use') {
       const toolUseBlocks = response.content.filter(
@@ -454,6 +513,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.log(`[Tool] ${toolUse.name}:`, toolUse.input);
         try {
           const result = await callDistroApi(toolUse.name, toolUse.input);
+          
+          // Capture taskId if this is a generate_music call
+          if (toolUse.name === 'generate_music' && result.taskId) {
+            generationTaskId = result.taskId;
+            console.log(`[Generate] Started with taskId: ${generationTaskId}`);
+          }
+          
           toolResults.push({
             type: 'tool_result',
             tool_use_id: toolUse.id,
@@ -487,9 +553,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const textBlocks = response.content.filter(
       (block): block is Anthropic.TextBlock => block.type === 'text'
     );
-    const responseText = textBlocks.map(b => b.text).join('\n');
+    let responseText = textBlocks.map(b => b.text).join('\n');
+    
+    // If music generation started, append taskId to ensure frontend can detect it
+    if (generationTaskId) {
+      responseText += `\n\n[taskId: ${generationTaskId}]`;
+    }
 
-    return res.status(200).json({ response: responseText });
+    return res.status(200).json({ response: responseText, taskId: generationTaskId });
   } catch (error) {
     console.error('Chat error:', error);
     return res.status(500).json({ 

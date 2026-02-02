@@ -61,6 +61,8 @@
       border-radius: 16px;
       line-height: 1.5;
       animation: fadeIn 0.3s ease;
+      word-break: break-word;
+      overflow-wrap: break-word;
     }
 
     @keyframes fadeIn {
@@ -101,6 +103,11 @@
     .message.thinking {
       color: #888;
       font-style: italic;
+    }
+
+    .chat-link {
+      color: #a78bfa;
+      text-decoration: underline;
     }
 
     .input-area {
@@ -190,19 +197,177 @@
       font-weight: 600;
       margin-bottom: 4px;
     }
+
+    /* Claude Desktop Integration Section */
+    .integration-toggle {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #888;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .integration-toggle:hover {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+
+    .integration-panel {
+      display: none;
+      margin-top: 16px;
+      padding: 20px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 12px;
+      text-align: left;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .integration-panel.open {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .integration-panel h3 {
+      color: #fff;
+      font-size: 16px;
+      margin-bottom: 16px;
+    }
+
+    .integration-panel .step {
+      margin-bottom: 16px;
+    }
+
+    .integration-panel .step-number {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      border-radius: 50%;
+      text-align: center;
+      line-height: 24px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-right: 10px;
+    }
+
+    .integration-panel .step-title {
+      color: #fff;
+      font-weight: 500;
+    }
+
+    .integration-panel .step-content {
+      margin-left: 34px;
+      margin-top: 8px;
+      color: #aaa;
+      font-size: 14px;
+    }
+
+    .integration-panel pre {
+      background: rgba(0,0,0,0.4);
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+
+    .integration-panel code {
+      font-family: 'SF Mono', Monaco, monospace;
+      color: #a78bfa;
+    }
+
+    .integration-panel .copy-btn {
+      padding: 4px 10px;
+      font-size: 11px;
+      background: rgba(255,255,255,0.1);
+      border: none;
+      border-radius: 4px;
+      color: #888;
+      cursor: pointer;
+      margin-left: 8px;
+    }
+
+    .integration-panel .copy-btn:hover {
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+    }
+
+    .integration-panel .note {
+      margin-top: 16px;
+      padding: 12px;
+      background: rgba(102, 126, 234, 0.1);
+      border: 1px solid rgba(102, 126, 234, 0.2);
+      border-radius: 8px;
+      font-size: 13px;
+      color: #aaa;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
       <h1>🎵 MCP Distro tester</h1>
+      <p>Release music to Spotify, Apple Music & more</p>
+      <div class="integration-toggle" onclick="toggleIntegration()">
+        🔌 Use with Claude Desktop
+      </div>
+      <div class="integration-panel" id="integrationPanel">
+        <h3>Add Distro to Claude Desktop</h3>
+        
+        <div class="step">
+          <span class="step-number">1</span>
+          <span class="step-title">Clone and build</span>
+          <div class="step-content">
+            <pre><code>git clone https://github.com/lp-opul/Distro.git
+cd Distro
+npm install && npm run build</code></pre>
+          </div>
+        </div>
+
+        <div class="step">
+          <span class="step-number">2</span>
+          <span class="step-title">Add to Claude Desktop config</span>
+          <div class="step-content">
+            <p>Open or create: <code>~/Library/Application Support/Claude/claude_desktop_config.json</code></p>
+            <pre id="configCode"><code>{
+  "mcpServers": {
+    "distro-mcp": {
+      "command": "node",
+      "args": ["/path/to/Distro/dist/client.js"]
+    }
+  }
+}</code></pre>
+            <button class="copy-btn" onclick="copyConfig()">Copy</button>
+            <p style="margin-top: 8px; font-size: 12px; color: #888;">Replace <code>/path/to/Distro</code> with where you cloned it (e.g. <code>~/Distro</code>)</p>
+          </div>
+        </div>
+
+        <div class="step">
+          <span class="step-number">3</span>
+          <span class="step-title">Restart Claude Desktop</span>
+          <div class="step-content">
+            Quit and reopen Claude Desktop. You'll see the Distro tools available in the tools menu.
+          </div>
+        </div>
+
+        <div class="note">
+          <strong>Note:</strong> This gives Claude direct access to music distribution tools. You can ask Claude to create artists, generate music, upload tracks, and submit releases to streaming platforms.
+        </div>
+      </div>
     </header>
 
     <div class="messages" id="messages">
       <div class="welcome">
-        <h2>Release music to Spotify, Apple Music & more</h2>
+        <h2>Let's create something</h2>
         <p>Tell me what you want to create and I'll handle the rest.</p>
-        <p style="margin-top: 16px;">You can release your own music or create a song right now!</p>
+        <p style="margin-top: 16px;">Describe your song idea - genre, mood, lyrics - and I'll generate it and get it distributed.</p>
       </div>
     </div>
 
@@ -240,6 +405,7 @@
         .replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
         .replace(/`([^`]+)`/g, '<code>$1</code>')
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="chat-link">$1</a>')
         .replace(/\n/g, '<br>');
       
       div.innerHTML = formatted;
@@ -293,11 +459,11 @@
     async function pollGeneration(pollUrl) {
       const statusEl = document.getElementById('status-message');
       
-      for (let i = 0; i < 30; i++) { // Max 2.5 minutes
+      for (let i = 0; i < 48; i++) { // Max 4 minutes
         await new Promise(r => setTimeout(r, 5000));
         
         const elapsed = (i + 1) * 5;
-        if (statusEl) statusEl.textContent = `🎵 Creating your song... (${elapsed}s)`;
+        if (statusEl) statusEl.textContent = `🎵 Creating your song... (${elapsed}s) - this can take up to 3 minutes`;
         
         try {
           const res = await fetch(pollUrl);
@@ -347,13 +513,15 @@
         // Check if response mentions generation started (Claude's response about the task)
         const responseText = data.response || '';
         
-        // Check for pollUrl in the response (music generation in progress)
-        const pollUrlMatch = responseText.match(/pollUrl["\s:]+([^\s"]+)/);
-        const taskIdMatch = responseText.match(/taskId["\s:]+([a-f0-9]+)/);
+        // Check for taskId - first in JSON response, then in text
+        let taskId = data.taskId; // Direct from API response
+        if (!taskId) {
+          const taskIdMatch = responseText.match(/taskId["\s:\]]+([a-f0-9]+)/);
+          if (taskIdMatch) taskId = taskIdMatch[1];
+        }
         
-        if (taskIdMatch && responseText.toLowerCase().includes('generat')) {
+        if (taskId) {
           // Music is being generated - poll for it
-          const taskId = taskIdMatch[1];
           const pollUrl = `https://distro-nu.vercel.app/api/generate/status/${taskId}`;
           
           addMessage('assistant', '🎵 Starting music generation... this takes about 60-90 seconds.');
@@ -363,15 +531,15 @@
             const track = await pollGeneration(pollUrl);
             removeStatus();
             
-            // Show the result
-            const resultMsg = `✅ Your song is ready!\n\n**${track.title}**\n🎧 [Listen to your track](${track.audioUrl})\n\nNow I'll set up the release...`;
+            // Show the result - don't share Suno URL as it expires quickly
+            const resultMsg = `✅ Your song is ready!\n\n**${track.title}**\n\nNow I'll set up the release and you'll be able to preview it once it's live on streaming platforms...`;
             addMessage('assistant', resultMsg);
             conversationHistory.push({ role: 'assistant', content: resultMsg });
             
-            // Auto-continue with the track info
+            // Auto-continue with the track info (include taskId for the complete_release tool)
             conversationHistory.push({ 
               role: 'user', 
-              content: `Great! The song "${track.title}" is ready. Audio URL: ${track.audioUrl} - Image URL: ${track.imageUrl}. Please continue setting up the release.`
+              content: `Great! The song "${track.title}" is ready. taskId: ${taskId} - Please complete the release now.`
             });
             
             // Continue the flow
@@ -415,6 +583,29 @@
     });
 
     inputEl.focus();
+
+    // Integration panel toggle
+    function toggleIntegration() {
+      const panel = document.getElementById('integrationPanel');
+      panel.classList.toggle('open');
+    }
+
+    // Copy config to clipboard
+    function copyConfig() {
+      const config = `{
+  "mcpServers": {
+    "distro-mcp": {
+      "command": "node",
+      "args": ["/path/to/Distro/dist/client.js"]
+    }
+  }
+}`;
+      navigator.clipboard.writeText(config).then(() => {
+        const btn = document.querySelector('.copy-btn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy', 2000);
+      });
+    }
   </script>
 </body>
 </html>

@@ -23,11 +23,12 @@ export declare class DittoClient {
     createRelease(data: {
         title: string;
         artistId: string;
+        artistName?: string;
         releaseDate: string;
         genreId?: string;
         labelId?: string;
         upc?: string;
-        copyrightLine?: string;
+        copyrightHolder?: string;
         copyrightYear?: number;
     }): Promise<any>;
     getReleases(): Promise<any>;
@@ -76,6 +77,11 @@ export declare class DittoClient {
     getStores(): Promise<any>;
     submitToStores(releaseId: string, storeIds: number[]): Promise<any>;
     removeFromStores(releaseId: string, storeIds: string[]): Promise<any>;
+    /**
+     * Finalize and submit a release for review
+     * This changes the release status to "Submitted" (statusId: 8)
+     */
+    finalizeRelease(releaseId: string): Promise<any>;
     getReleaseStatuses(): Promise<any>;
     getGenres(): Promise<any>;
     setReleaseSplits(releaseId: string, splits: Split[]): Promise<any>;

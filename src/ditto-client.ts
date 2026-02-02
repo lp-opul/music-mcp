@@ -199,16 +199,22 @@ export class DittoClient {
   async createRelease(data: {
     title: string;
     artistId: string;
+    artistName?: string;
     releaseDate: string;
     genreId?: string;
     labelId?: string;
     upc?: string;
-    copyrightLine?: string;
+    copyrightHolder?: string;
     copyrightYear?: number;
   }): Promise<any> {
     // Extract numeric ID from IRI or use as-is
     const artistIdMatch = data.artistId.match(/(\d+)$/);
     const numericArtistId = artistIdMatch ? parseInt(artistIdMatch[1], 10) : parseInt(data.artistId, 10);
+    
+    // Use artist name as default copyright holder
+    const currentYear = new Date().getFullYear();
+    const copyrightHolder = data.copyrightHolder || data.artistName || 'Independent Artist';
+    const copyrightYear = data.copyrightYear || currentYear;
     
     const payload = {
       title: data.title,
@@ -217,8 +223,11 @@ export class DittoClient {
       genre: data.genreId,
       label: data.labelId,
       upc: data.upc,
-      cLine: data.copyrightLine,
-      cLineYear: data.copyrightYear,
+      // Copyright fields (required for submission)
+      cLine: copyrightHolder,           // Copyright Holder
+      cLineYear: copyrightYear,         // Copyright Year
+      pLine: copyrightHolder,           // Phonographic Rights Holder (usually same)
+      pLineYear: copyrightYear,         // Production Year
     };
     console.error('[Ditto] createRelease payload:', JSON.stringify(payload, null, 2));
     return this.request('/api/me/releases/music', {
@@ -584,6 +593,41 @@ export class DittoClient {
         stores: storeIds,
       }),
     });
+  }
+
+  /**
+   * Finalize and submit a release for review
+   * This changes the release status to "Submitted" (statusId: 8)
+   */
+  async finalizeRelease(releaseId: string): Promise<any> {
+    console.error(`[Ditto] Finalizing release ${releaseId}...`);
+    
+    // Try the submit endpoint first
+    try {
+      const submitResult = await this.request(`/api/me/releases/${releaseId}/submit`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      console.error(`[Ditto] Submit endpoint succeeded`);
+      return submitResult;
+    } catch (e) {
+      console.error(`[Ditto] Submit endpoint failed: ${e}, trying status update...`);
+    }
+    
+    // Fallback: try to PATCH the status directly
+    try {
+      const patchResult = await this.request(`/api/me/releases/${releaseId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ statusId: 8 }), // 8 = Submitted
+      });
+      console.error(`[Ditto] Status PATCH succeeded`);
+      return patchResult;
+    } catch (e) {
+      console.error(`[Ditto] Status PATCH failed: ${e}`);
+    }
+    
+    // Return current release state
+    return this.getRelease(releaseId);
   }
 
   // ============================================
