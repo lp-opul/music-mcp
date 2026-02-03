@@ -16,9 +16,9 @@
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #0a0a0a;
+      background: #09090b;
       min-height: 100vh;
-      color: #ffffff;
+      color: #fafafa;
     }
 
     .container {
@@ -27,45 +27,49 @@
       height: 100vh;
       display: flex;
       flex-direction: column;
-      background: #0a0a0a;
+      background: #09090b;
     }
 
     header {
-      padding: 28px 32px;
+      padding: 32px;
       text-align: center;
-      border-bottom: 1px solid #1a1a1a;
-      background: #0a0a0a;
+      border-bottom: 1px solid #18181b;
+      background: #09090b;
     }
 
     header h1 {
-      font-size: 28px;
-      font-weight: 600;
-      color: #ffffff;
+      font-size: 32px;
+      font-weight: 700;
+      color: #fafafa;
       letter-spacing: -0.5px;
     }
 
     header h1 span {
-      color: #f97316;
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
 
     .tagline {
-      color: #737373;
+      color: #71717a;
       font-size: 15px;
-      margin-top: 8px;
+      margin-top: 10px;
+      font-weight: 400;
     }
 
     .tagline span {
-      color: #f97316;
+      color: #a1a1aa;
     }
 
     .integration-toggle {
       display: inline-block;
       margin-top: 20px;
       padding: 10px 20px;
-      background: #1a1a1a;
-      border: 1px solid #2a2a2a;
-      border-radius: 20px;
-      color: #f97316;
+      background: transparent;
+      border: 1px solid #27272a;
+      border-radius: 8px;
+      color: #a1a1aa;
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
@@ -73,17 +77,18 @@
     }
 
     .integration-toggle:hover {
-      background: #222222;
-      border-color: #f97316;
+      background: #18181b;
+      border-color: #3f3f46;
+      color: #fafafa;
     }
 
     .integration-panel {
       display: none;
       margin-top: 24px;
       padding: 24px;
-      background: #111111;
-      border: 1px solid #2a2a2a;
-      border-radius: 16px;
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 12px;
       text-align: left;
       max-width: 540px;
       margin-left: auto;
@@ -96,7 +101,7 @@
     }
 
     .integration-panel h3 {
-      color: #ffffff;
+      color: #fafafa;
       font-size: 15px;
       font-weight: 600;
       margin-bottom: 20px;
@@ -110,52 +115,52 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 24px;
-      height: 24px;
-      background: #f97316;
-      border-radius: 50%;
-      color: #0a0a0a;
-      font-size: 12px;
+      width: 22px;
+      height: 22px;
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+      border-radius: 6px;
+      color: #09090b;
+      font-size: 11px;
       font-weight: 700;
       margin-right: 12px;
     }
 
     .integration-panel .step-title {
-      color: #ffffff;
+      color: #fafafa;
       font-weight: 500;
       font-size: 14px;
     }
 
     .integration-panel .step-content {
-      margin-left: 36px;
+      margin-left: 34px;
       margin-top: 10px;
-      color: #737373;
+      color: #71717a;
       font-size: 13px;
       line-height: 1.5;
     }
 
     .integration-panel pre {
-      background: #0a0a0a;
+      background: #09090b;
       padding: 14px;
-      border-radius: 10px;
+      border-radius: 8px;
       overflow-x: auto;
       font-size: 12px;
       margin-top: 10px;
-      border: 1px solid #2a2a2a;
+      border: 1px solid #27272a;
     }
 
     .integration-panel code {
       font-family: 'SF Mono', Monaco, monospace;
-      color: #f97316;
+      color: #fbbf24;
     }
 
     .integration-panel .copy-btn {
       padding: 6px 14px;
       font-size: 12px;
-      background: #1a1a1a;
-      border: 1px solid #2a2a2a;
-      border-radius: 8px;
-      color: #737373;
+      background: transparent;
+      border: 1px solid #27272a;
+      border-radius: 6px;
+      color: #71717a;
       cursor: pointer;
       margin-left: 8px;
       font-weight: 500;
@@ -163,19 +168,18 @@
     }
 
     .integration-panel .copy-btn:hover {
-      background: #222222;
-      color: #ffffff;
-      border-color: #f97316;
+      background: #27272a;
+      color: #fafafa;
     }
 
     .integration-panel .note {
       margin-top: 20px;
       padding: 14px;
-      background: #0a0a0a;
-      border: 1px solid #2a2a2a;
-      border-radius: 10px;
+      background: #09090b;
+      border: 1px solid #27272a;
+      border-radius: 8px;
       font-size: 13px;
-      color: #737373;
+      color: #71717a;
       line-height: 1.5;
     }
 
@@ -186,7 +190,7 @@
       display: flex;
       flex-direction: column;
       gap: 24px;
-      background: #050505;
+      background: linear-gradient(180deg, #09090b 0%, #0c0c0f 100%);
     }
 
     .message-row {
@@ -202,29 +206,29 @@
     .avatar {
       width: 32px;
       height: 32px;
-      border-radius: 50%;
+      border-radius: 8px;
       flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 600;
-      font-size: 13px;
+      font-size: 12px;
     }
 
     .avatar.assistant {
-      background: #f97316;
-      color: #0a0a0a;
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+      color: #09090b;
     }
 
     .avatar.user {
-      background: #2a2a2a;
-      color: #737373;
+      background: #27272a;
+      color: #71717a;
     }
 
     .message {
       max-width: 520px;
       padding: 14px 18px;
-      border-radius: 20px;
+      border-radius: 16px;
       line-height: 1.6;
       font-size: 15px;
       word-break: break-word;
@@ -237,46 +241,46 @@
     }
 
     .message.user {
-      background: #f97316;
-      color: #0a0a0a;
-      border-bottom-right-radius: 6px;
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+      color: #09090b;
+      border-bottom-right-radius: 4px;
     }
 
     .message.assistant {
-      background: #141414;
-      color: #ffffff;
-      border-bottom-left-radius: 6px;
-      border: 1px solid #2a2a2a;
+      background: #18181b;
+      color: #fafafa;
+      border-bottom-left-radius: 4px;
+      border: 1px solid #27272a;
     }
 
     .message.assistant pre {
-      background: #0a0a0a;
+      background: #09090b;
       padding: 14px;
-      border-radius: 10px;
+      border-radius: 8px;
       overflow-x: auto;
       margin: 12px 0;
       font-size: 13px;
-      border: 1px solid #2a2a2a;
+      border: 1px solid #27272a;
     }
 
     .message.assistant code {
       font-family: 'SF Mono', Monaco, monospace;
-      color: #f97316;
+      color: #fbbf24;
     }
 
     .message.error {
-      background: #1a0a0a;
+      background: #1c1917;
       border: 1px solid #7f1d1d;
       color: #fca5a5;
     }
 
     .message.thinking {
-      color: #737373;
+      color: #71717a;
       font-style: normal;
     }
 
     .chat-link {
-      color: #f97316;
+      color: #fbbf24;
       text-decoration: none;
       font-weight: 500;
     }
@@ -287,24 +291,24 @@
 
     .input-area {
       padding: 24px 32px;
-      border-top: 1px solid #1a1a1a;
-      background: #0a0a0a;
+      border-top: 1px solid #18181b;
+      background: #09090b;
     }
 
     .input-wrapper {
       display: flex;
       gap: 12px;
-      background: #141414;
-      border-radius: 24px;
+      background: #18181b;
+      border-radius: 12px;
       padding: 6px 6px 6px 20px;
       align-items: center;
       transition: all 0.2s;
-      border: 1px solid #2a2a2a;
+      border: 1px solid #27272a;
     }
 
     .input-wrapper:focus-within {
-      border-color: #f97316;
-      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+      border-color: #fbbf24;
+      box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.1);
     }
 
     input {
@@ -312,22 +316,22 @@
       padding: 12px 0;
       border: none;
       background: transparent;
-      color: #ffffff;
+      color: #fafafa;
       font-size: 15px;
       outline: none;
       font-family: inherit;
     }
 
     input::placeholder {
-      color: #525252;
+      color: #52525b;
     }
 
     button {
       padding: 12px 24px;
-      background: #f97316;
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
       border: none;
-      border-radius: 20px;
-      color: #0a0a0a;
+      border-radius: 10px;
+      color: #09090b;
       font-size: 15px;
       font-weight: 600;
       cursor: pointer;
@@ -336,7 +340,7 @@
     }
 
     button:hover {
-      background: #fb923c;
+      opacity: 0.9;
       transform: scale(1.02);
     }
 
@@ -360,20 +364,23 @@
     }
 
     .welcome h2 span {
-      color: #f97316;
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
 
     .welcome .typed-text {
       font-family: 'SF Mono', Monaco, Consolas, monospace;
-      color: #737373;
-      font-size: 14px;
-      line-height: 1.8;
-      max-width: 480px;
-      margin: 20px auto 0;
+      color: #71717a;
+      font-size: 13px;
+      line-height: 2;
+      max-width: 440px;
+      margin: 24px auto 0;
       text-align: left;
-      background: #111111;
-      border: 1px solid #2a2a2a;
-      border-radius: 12px;
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 10px;
       padding: 20px 24px;
     }
 
@@ -381,7 +388,7 @@
       display: inline-block;
       width: 2px;
       height: 1em;
-      background: #f97316;
+      background: #fbbf24;
       margin-left: 2px;
       animation: blink 1s infinite;
       vertical-align: text-bottom;
@@ -393,11 +400,11 @@
     }
 
     .welcome .typed-text .comment {
-      color: #525252;
+      color: #52525b;
     }
 
     .welcome .typed-text .keyword {
-      color: #f97316;
+      color: #fbbf24;
     }
 
     .audio-preview {
@@ -418,14 +425,14 @@
     /* Typing indicator */
     .typing-indicator {
       display: flex;
-      gap: 4px;
+      gap: 5px;
       padding: 4px 0;
     }
 
     .typing-indicator span {
-      width: 8px;
-      height: 8px;
-      background: #f97316;
+      width: 6px;
+      height: 6px;
+      background: #fbbf24;
       border-radius: 50%;
       animation: typing 1.4s infinite ease-in-out;
     }
@@ -439,8 +446,8 @@
     }
 
     @keyframes typing {
-      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-      30% { transform: translateY(-4px); opacity: 1; }
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.3; }
+      30% { transform: translateY(-3px); opacity: 1; }
     }
   </style>
 </head>
