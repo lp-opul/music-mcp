@@ -105,7 +105,28 @@ function getRemainingGenerations(userId: string): number {
 
 // Create Express app
 const app = express();
-app.use(cors());
+// CORS - restrict to known origins in production
+const allowedOrigins = [
+  'https://distro-nu.vercel.app',
+  'https://web-navy-eight-33.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:5173',
+];
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, Postman, curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    // In development, allow all
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '50mb' }));
 
 // Error handler
@@ -706,7 +727,7 @@ app.post('/api/release-full', asyncHandler(async (req: Request, res: Response) =
     audioBuffer = Buffer.from(buffer);
     console.log(`[ReleaseFull] Downloaded ${audioBuffer.length} bytes of audio`);
   } catch (e) {
-    return res.status(500).json({ error: `Failed to download audio: ${e}` });
+    return res.status(500).json({ error: 'Failed to download audio' });
   }
   
   // Download artwork
@@ -731,7 +752,7 @@ app.post('/api/release-full', asyncHandler(async (req: Request, res: Response) =
     console.log(`[ReleaseFull] Created artist: ${artist.id}`);
   } catch (e) {
     console.error(`[ReleaseFull] Artist creation failed: ${e}`);
-    return res.status(500).json({ error: `Failed to create artist: ${e}` });
+    return res.status(500).json({ error: 'Failed to create artist' });
   }
   
   // Step 3: Create release with all required details
@@ -765,7 +786,7 @@ app.post('/api/release-full', asyncHandler(async (req: Request, res: Response) =
     }
   } catch (e) {
     console.error(`[ReleaseFull] Release creation failed: ${e}`);
-    return res.status(500).json({ error: `Failed to create release: ${e}` });
+    return res.status(500).json({ error: 'Failed to create release' });
   }
   
   // Step 4: Upload track audio
@@ -779,7 +800,7 @@ app.post('/api/release-full', asyncHandler(async (req: Request, res: Response) =
     console.log(`[ReleaseFull] Track uploaded`);
   } catch (e) {
     console.error(`[ReleaseFull] Track upload failed: ${e}`);
-    return res.status(500).json({ error: `Failed to upload track: ${e}` });
+    return res.status(500).json({ error: 'Failed to upload track' });
   }
   
   // Step 5: Upload artwork (if available)

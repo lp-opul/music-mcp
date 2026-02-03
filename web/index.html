@@ -548,12 +548,25 @@ npm install && npm run build</code></pre>
       const msg = document.createElement('div');
       msg.className = `message ${role}${isError ? ' error' : ''}`;
       
-      // Simple markdown-like formatting
-      let formatted = content
+      // Escape HTML first to prevent XSS
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+      
+      // Simple markdown-like formatting (after escaping)
+      let formatted = escapeHtml(content)
         .replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
         .replace(/`([^`]+)`/g, '<code>$1</code>')
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="chat-link">$1</a>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
+          // Only allow http/https URLs
+          if (url.match(/^https?:\/\//)) {
+            return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="chat-link">${escapeHtml(text)}</a>`;
+          }
+          return match;
+        })
         .replace(/\n/g, '<br>');
       
       msg.innerHTML = formatted;
@@ -701,16 +714,33 @@ npm install && npm run build</code></pre>
               
               const playerMsg = document.createElement('div');
               playerMsg.className = 'message assistant';
-              playerMsg.innerHTML = `
-                <div class="audio-preview">
-                  <p style="margin-bottom: 12px;"><strong>Preview your track</strong></p>
-                  <audio controls>
-                    <source src="${track.audioUrl}" type="audio/mpeg">
-                    Your browser doesn't support audio playback.
-                  </audio>
-                  <p style="margin-top: 10px; font-size: 13px; color: #86868b;">This preview expires in about 10 minutes. Your track will be available on streaming platforms within 7 days.</p>
-                </div>
-              `;
+              // Validate URL before using
+              const audioUrl = track.audioUrl;
+              const isValidUrl = audioUrl && audioUrl.match(/^https?:\/\//);
+              
+              if (isValidUrl) {
+                const audio = document.createElement('audio');
+                audio.controls = true;
+                const source = document.createElement('source');
+                source.src = audioUrl;
+                source.type = 'audio/mpeg';
+                audio.appendChild(source);
+                
+                playerMsg.innerHTML = `
+                  <div class="audio-preview">
+                    <p style="margin-bottom: 12px;"><strong>Preview your track</strong></p>
+                    <p style="margin-top: 10px; font-size: 13px; color: #86868b;">This preview expires in about 10 minutes. Your track will be available on streaming platforms within 7 days.</p>
+                  </div>
+                `;
+                playerMsg.querySelector('.audio-preview p:first-child').after(audio);
+              } else {
+                playerMsg.innerHTML = `
+                  <div class="audio-preview">
+                    <p><strong>Track generated!</strong></p>
+                    <p style="margin-top: 10px; font-size: 13px; color: #86868b;">Your track will be available on streaming platforms within 7 days.</p>
+                  </div>
+                `;
+              }
               
               row.appendChild(avatar);
               row.appendChild(playerMsg);
