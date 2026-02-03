@@ -368,18 +368,51 @@
 
     .welcome h2 {
       color: #ffffff;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
       font-size: 28px;
       font-weight: 600;
       letter-spacing: -0.5px;
     }
 
-    .welcome p {
+    .welcome h2 span {
+      color: #f97316;
+    }
+
+    .welcome .typed-text {
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+      color: #737373;
+      font-size: 14px;
+      line-height: 1.8;
+      max-width: 480px;
+      margin: 20px auto 0;
+      text-align: left;
+      background: #111111;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 20px 24px;
+    }
+
+    .welcome .typed-text .cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background: #f97316;
+      margin-left: 2px;
+      animation: blink 1s infinite;
+      vertical-align: text-bottom;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    .welcome .typed-text .comment {
       color: #525252;
-      font-size: 16px;
-      line-height: 1.6;
-      max-width: 400px;
-      margin: 0 auto;
+    }
+
+    .welcome .typed-text .keyword {
+      color: #f97316;
     }
 
     .audio-preview {
@@ -484,8 +517,14 @@ npm install && npm run build</code></pre>
 
     <div class="messages" id="messages">
       <div class="welcome">
-        <h2>Let's create something</h2>
-        <p>Describe your song idea — genre, mood, lyrics — and I'll generate it and get it distributed.</p>
+        <h2>Upload your music. Or <span>let's create something</span></h2>
+        <div class="typed-text">
+          <span class="comment">// Describe your song idea</span><br>
+          <span class="keyword">genre:</span> "lofi, hip-hop, rock..."<br>
+          <span class="keyword">mood:</span> "chill, energetic, emotional..."<br>
+          <span class="keyword">lyrics:</span> "your words or let AI write"<br><br>
+          <span class="comment">// I'll generate it and get it distributed</span><span class="cursor"></span>
+        </div>
       </div>
     </div>
 
