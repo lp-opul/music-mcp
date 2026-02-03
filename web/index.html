@@ -37,30 +37,15 @@
       background: #0a0a0a;
     }
 
-    .logo {
-      display: inline-flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .logo-icon {
-      width: 40px;
-      height: 40px;
-      background: #f97316;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #0a0a0a;
-      font-weight: 700;
-      font-size: 20px;
-    }
-
     header h1 {
-      font-size: 24px;
+      font-size: 28px;
       font-weight: 600;
       color: #ffffff;
-      letter-spacing: -0.3px;
+      letter-spacing: -0.5px;
+    }
+
+    header h1 span {
+      color: #f97316;
     }
 
     .tagline {
@@ -462,10 +447,7 @@
 <body>
   <div class="container">
     <header>
-      <div class="logo">
-        <div class="logo-icon">D</div>
-        <h1>Music MCP</h1>
-      </div>
+      <h1>Music <span>MCP</span></h1>
       <p class="tagline">For <span>humans</span> and <span>agents</span></p>
       <div class="integration-toggle" onclick="toggleIntegration()">
         Use with Claude Desktop
