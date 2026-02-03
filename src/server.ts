@@ -46,6 +46,38 @@ const STORE_IDS: Record<string, number> = {
   instagram: 100,
 };
 
+// Rate limiting - 3 generations per day per user
+const dailyUsage = new Map<string, { count: number; date: string }>();
+const DAILY_LIMIT = 3;
+
+function checkDailyLimit(userId: string): boolean {
+  const today = new Date().toISOString().split('T')[0];
+  const usage = dailyUsage.get(userId);
+  
+  if (!usage || usage.date !== today) {
+    dailyUsage.set(userId, { count: 1, date: today });
+    return true;
+  }
+  
+  if (usage.count >= DAILY_LIMIT) {
+    return false;
+  }
+  
+  usage.count++;
+  return true;
+}
+
+function getRemainingGenerations(userId: string): number {
+  const today = new Date().toISOString().split('T')[0];
+  const usage = dailyUsage.get(userId);
+  
+  if (!usage || usage.date !== today) {
+    return DAILY_LIMIT;
+  }
+  
+  return Math.max(0, DAILY_LIMIT - usage.count);
+}
+
 // Create Express app
 const app = express();
 app.use(cors());
@@ -256,6 +288,15 @@ app.post('/api/generate', asyncHandler(async (req: Request, res: Response) => {
     return res.status(503).json({ error: 'Suno client not configured. Set SUNO_API_KEY in .env' });
   }
   
+  // Rate limiting
+  const userId = req.ip || 'anonymous';
+  if (!checkDailyLimit(userId)) {
+    return res.status(429).json({ 
+      error: 'Daily limit reached (3 songs per day). Try again tomorrow!',
+      remaining: 0,
+    });
+  }
+  
   const { prompt, style, lyrics, title, instrumental, wait } = req.body;
   
   if (!prompt && !lyrics) {
@@ -278,6 +319,7 @@ app.post('/api/generate', asyncHandler(async (req: Request, res: Response) => {
       taskId: task.taskId,
       status: 'PENDING',
       message: 'Generation started. Poll /api/generate/status/:taskId for results.',
+      remaining: getRemainingGenerations(userId),
     });
   }
   
