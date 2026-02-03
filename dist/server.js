@@ -39,29 +39,49 @@ const STORE_IDS = {
     pandora: 85,
     instagram: 100,
 };
-// Rate limiting - 3 generations per day per user
-const dailyUsage = new Map();
-const DAILY_LIMIT = 3;
-function checkDailyLimit(userId) {
+// Rate limiting configuration
+const LIMITS = {
+    generations: 3, // Music generations per day
+    releases: 5, // Releases per day
+    artists: 5, // Artist creations per day
+};
+// Track usage per endpoint type
+const usageTrackers = {
+    generations: new Map(),
+    releases: new Map(),
+    artists: new Map(),
+};
+function checkLimit(userId, type) {
     const today = new Date().toISOString().split('T')[0];
-    const usage = dailyUsage.get(userId);
+    const tracker = usageTrackers[type];
+    const limit = LIMITS[type];
+    const usage = tracker.get(userId);
     if (!usage || usage.date !== today) {
-        dailyUsage.set(userId, { count: 1, date: today });
+        tracker.set(userId, { count: 1, date: today });
         return true;
     }
-    if (usage.count >= DAILY_LIMIT) {
+    if (usage.count >= limit) {
         return false;
     }
     usage.count++;
     return true;
 }
-function getRemainingGenerations(userId) {
+function getRemaining(userId, type) {
     const today = new Date().toISOString().split('T')[0];
-    const usage = dailyUsage.get(userId);
+    const tracker = usageTrackers[type];
+    const limit = LIMITS[type];
+    const usage = tracker.get(userId);
     if (!usage || usage.date !== today) {
-        return DAILY_LIMIT;
+        return limit;
     }
-    return Math.max(0, DAILY_LIMIT - usage.count);
+    return Math.max(0, limit - usage.count);
+}
+// Legacy functions for backward compatibility
+function checkDailyLimit(userId) {
+    return checkLimit(userId, 'generations');
+}
+function getRemainingGenerations(userId) {
+    return getRemaining(userId, 'generations');
 }
 // Create Express app
 const app = express();
@@ -78,6 +98,14 @@ const asyncHandler = (fn) => (req, res, next) => {
  * POST /api/artist - Create artist
  */
 app.post('/api/artist', asyncHandler(async (req, res) => {
+    // Rate limiting
+    const userId = req.ip || 'anonymous';
+    if (!checkLimit(userId, 'artists')) {
+        return res.status(429).json({
+            error: 'Daily limit reached (5 artists per day). Try again tomorrow!',
+            remaining: 0,
+        });
+    }
     const { name, genres } = req.body;
     if (!name) {
         return res.status(400).json({ error: 'name is required' });
@@ -107,6 +135,14 @@ app.get('/api/artists', asyncHandler(async (req, res) => {
  * POST /api/release - Create release
  */
 app.post('/api/release', asyncHandler(async (req, res) => {
+    // Rate limiting
+    const userId = req.ip || 'anonymous';
+    if (!checkLimit(userId, 'releases')) {
+        return res.status(429).json({
+            error: 'Daily limit reached (5 releases per day). Try again tomorrow!',
+            remaining: 0,
+        });
+    }
     const { artistId, artistName, title, releaseDate, copyrightHolder, copyrightYear } = req.body;
     if (!artistId || !title || !releaseDate) {
         return res.status(400).json({ error: 'artistId, title, and releaseDate are required' });
@@ -526,6 +562,14 @@ app.post('/api/upload-artwork', asyncHandler(async (req, res) => {
  * Takes a completed taskId and does everything: create artist, release, upload track+artwork, submit
  */
 app.post('/api/release-full', asyncHandler(async (req, res) => {
+    // Rate limiting
+    const userId = req.ip || 'anonymous';
+    if (!checkLimit(userId, 'releases')) {
+        return res.status(429).json({
+            error: 'Daily limit reached (5 releases per day). Try again tomorrow!',
+            remaining: 0,
+        });
+    }
     const { taskId, artistName, trackTitle, style } = req.body;
     if (!taskId || !artistName || !trackTitle) {
         return res.status(400).json({ error: 'taskId, artistName, and trackTitle are required' });
