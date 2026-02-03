@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Distro - AI Music Distribution</title>
+  <title>Music MCP - For humans and agents</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -16,9 +16,9 @@
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #fafafa;
+      background: #0a0a0a;
       min-height: 100vh;
-      color: #1d1d1f;
+      color: #ffffff;
     }
 
     .container {
@@ -27,15 +27,14 @@
       height: 100vh;
       display: flex;
       flex-direction: column;
-      background: #ffffff;
-      box-shadow: 0 0 80px rgba(0, 0, 0, 0.05);
+      background: #0a0a0a;
     }
 
     header {
-      padding: 24px 32px;
+      padding: 28px 32px;
       text-align: center;
-      border-bottom: 1px solid #f0f0f0;
-      background: #ffffff;
+      border-bottom: 1px solid #1a1a1a;
+      background: #0a0a0a;
     }
 
     .logo {
@@ -45,39 +44,43 @@
     }
 
     .logo-icon {
-      width: 36px;
-      height: 36px;
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-      border-radius: 10px;
+      width: 40px;
+      height: 40px;
+      background: #f97316;
+      border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
-      font-weight: 600;
-      font-size: 18px;
+      color: #0a0a0a;
+      font-weight: 700;
+      font-size: 20px;
     }
 
     header h1 {
-      font-size: 22px;
+      font-size: 24px;
       font-weight: 600;
-      color: #1d1d1f;
+      color: #ffffff;
       letter-spacing: -0.3px;
     }
 
-    header p {
-      color: #86868b;
-      font-size: 14px;
-      margin-top: 6px;
+    .tagline {
+      color: #737373;
+      font-size: 15px;
+      margin-top: 8px;
+    }
+
+    .tagline span {
+      color: #f97316;
     }
 
     .integration-toggle {
       display: inline-block;
-      margin-top: 16px;
+      margin-top: 20px;
       padding: 10px 20px;
-      background: #f5f5f7;
-      border: none;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
       border-radius: 20px;
-      color: #6366f1;
+      color: #f97316;
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
@@ -85,14 +88,16 @@
     }
 
     .integration-toggle:hover {
-      background: #ededf0;
+      background: #222222;
+      border-color: #f97316;
     }
 
     .integration-panel {
       display: none;
-      margin-top: 20px;
+      margin-top: 24px;
       padding: 24px;
-      background: #f5f5f7;
+      background: #111111;
+      border: 1px solid #2a2a2a;
       border-radius: 16px;
       text-align: left;
       max-width: 540px;
@@ -106,7 +111,7 @@
     }
 
     .integration-panel h3 {
-      color: #1d1d1f;
+      color: #ffffff;
       font-size: 15px;
       font-weight: 600;
       margin-bottom: 20px;
@@ -122,16 +127,16 @@
       justify-content: center;
       width: 24px;
       height: 24px;
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      background: #f97316;
       border-radius: 50%;
-      color: white;
+      color: #0a0a0a;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
       margin-right: 12px;
     }
 
     .integration-panel .step-title {
-      color: #1d1d1f;
+      color: #ffffff;
       font-weight: 500;
       font-size: 14px;
     }
@@ -139,33 +144,33 @@
     .integration-panel .step-content {
       margin-left: 36px;
       margin-top: 10px;
-      color: #6e6e73;
+      color: #737373;
       font-size: 13px;
       line-height: 1.5;
     }
 
     .integration-panel pre {
-      background: #ffffff;
+      background: #0a0a0a;
       padding: 14px;
       border-radius: 10px;
       overflow-x: auto;
       font-size: 12px;
       margin-top: 10px;
-      border: 1px solid #e5e5e7;
+      border: 1px solid #2a2a2a;
     }
 
     .integration-panel code {
       font-family: 'SF Mono', Monaco, monospace;
-      color: #6366f1;
+      color: #f97316;
     }
 
     .integration-panel .copy-btn {
       padding: 6px 14px;
       font-size: 12px;
-      background: #ffffff;
-      border: 1px solid #e5e5e7;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
       border-radius: 8px;
-      color: #6e6e73;
+      color: #737373;
       cursor: pointer;
       margin-left: 8px;
       font-weight: 500;
@@ -173,18 +178,19 @@
     }
 
     .integration-panel .copy-btn:hover {
-      background: #f5f5f7;
-      color: #1d1d1f;
+      background: #222222;
+      color: #ffffff;
+      border-color: #f97316;
     }
 
     .integration-panel .note {
       margin-top: 20px;
       padding: 14px;
-      background: #ffffff;
-      border: 1px solid #e5e5e7;
+      background: #0a0a0a;
+      border: 1px solid #2a2a2a;
       border-radius: 10px;
       font-size: 13px;
-      color: #6e6e73;
+      color: #737373;
       line-height: 1.5;
     }
 
@@ -195,7 +201,7 @@
       display: flex;
       flex-direction: column;
       gap: 24px;
-      background: #fafafa;
+      background: #050505;
     }
 
     .message-row {
@@ -221,13 +227,13 @@
     }
 
     .avatar.assistant {
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-      color: white;
+      background: #f97316;
+      color: #0a0a0a;
     }
 
     .avatar.user {
-      background: #e5e5e7;
-      color: #6e6e73;
+      background: #2a2a2a;
+      color: #737373;
     }
 
     .message {
@@ -246,45 +252,46 @@
     }
 
     .message.user {
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-      color: white;
+      background: #f97316;
+      color: #0a0a0a;
       border-bottom-right-radius: 6px;
     }
 
     .message.assistant {
-      background: #ffffff;
-      color: #1d1d1f;
+      background: #141414;
+      color: #ffffff;
       border-bottom-left-radius: 6px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      border: 1px solid #2a2a2a;
     }
 
     .message.assistant pre {
-      background: #f5f5f7;
+      background: #0a0a0a;
       padding: 14px;
       border-radius: 10px;
       overflow-x: auto;
       margin: 12px 0;
       font-size: 13px;
+      border: 1px solid #2a2a2a;
     }
 
     .message.assistant code {
       font-family: 'SF Mono', Monaco, monospace;
-      color: #6366f1;
+      color: #f97316;
     }
 
     .message.error {
-      background: #fef2f2;
-      border: 1px solid #fecaca;
-      color: #991b1b;
+      background: #1a0a0a;
+      border: 1px solid #7f1d1d;
+      color: #fca5a5;
     }
 
     .message.thinking {
-      color: #86868b;
+      color: #737373;
       font-style: normal;
     }
 
     .chat-link {
-      color: #6366f1;
+      color: #f97316;
       text-decoration: none;
       font-weight: 500;
     }
@@ -295,25 +302,24 @@
 
     .input-area {
       padding: 24px 32px;
-      border-top: 1px solid #f0f0f0;
-      background: #ffffff;
+      border-top: 1px solid #1a1a1a;
+      background: #0a0a0a;
     }
 
     .input-wrapper {
       display: flex;
       gap: 12px;
-      background: #f5f5f7;
+      background: #141414;
       border-radius: 24px;
       padding: 6px 6px 6px 20px;
       align-items: center;
       transition: all 0.2s;
-      border: 2px solid transparent;
+      border: 1px solid #2a2a2a;
     }
 
     .input-wrapper:focus-within {
-      background: #ffffff;
-      border-color: #6366f1;
-      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+      border-color: #f97316;
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
     }
 
     input {
@@ -321,39 +327,38 @@
       padding: 12px 0;
       border: none;
       background: transparent;
-      color: #1d1d1f;
+      color: #ffffff;
       font-size: 15px;
       outline: none;
       font-family: inherit;
     }
 
     input::placeholder {
-      color: #86868b;
+      color: #525252;
     }
 
     button {
       padding: 12px 24px;
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      background: #f97316;
       border: none;
       border-radius: 20px;
-      color: #fff;
+      color: #0a0a0a;
       font-size: 15px;
-      font-weight: 500;
+      font-weight: 600;
       cursor: pointer;
       transition: all 0.2s ease;
       font-family: inherit;
     }
 
     button:hover {
+      background: #fb923c;
       transform: scale(1.02);
-      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
     }
 
     button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
       transform: none;
-      box-shadow: none;
     }
 
     .welcome {
@@ -362,7 +367,7 @@
     }
 
     .welcome h2 {
-      color: #1d1d1f;
+      color: #ffffff;
       margin-bottom: 12px;
       font-size: 28px;
       font-weight: 600;
@@ -370,7 +375,7 @@
     }
 
     .welcome p {
-      color: #86868b;
+      color: #525252;
       font-size: 16px;
       line-height: 1.6;
       max-width: 400px;
@@ -385,6 +390,7 @@
       border-radius: 12px;
       width: 100%;
       max-width: 380px;
+      filter: invert(1) hue-rotate(180deg);
     }
 
     .audio-preview p {
@@ -401,7 +407,7 @@
     .typing-indicator span {
       width: 8px;
       height: 8px;
-      background: #86868b;
+      background: #f97316;
       border-radius: 50%;
       animation: typing 1.4s infinite ease-in-out;
     }
@@ -425,9 +431,9 @@
     <header>
       <div class="logo">
         <div class="logo-icon">D</div>
-        <h1>Distro</h1>
+        <h1>Music MCP</h1>
       </div>
-      <p>Release music to Spotify, Apple Music and more</p>
+      <p class="tagline">For <span>humans</span> and <span>agents</span></p>
       <div class="integration-toggle" onclick="toggleIntegration()">
         Use with Claude Desktop
       </div>
