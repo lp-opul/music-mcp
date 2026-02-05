@@ -408,7 +408,7 @@ const tools: Tool[] = [
   },
   {
     name: 'generate_music',
-    description: 'Generate music using Suno AI. Can use AI-generated lyrics (simple mode) or your own custom lyrics (custom mode).',
+    description: 'Generate music using Suno AI. Returns an audioUrl - ALWAYS share this URL with the user so they can preview their song before distribution. Ask for approval before proceeding to release.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -438,7 +438,7 @@ const tools: Tool[] = [
   },
   {
     name: 'release_ai_track',
-    description: 'One-shot tool: Generate AI music with Suno and set up for distribution on Ditto. Creates artist, release, track, and optionally artwork in one call. Supports custom lyrics.',
+    description: 'IMPORTANT: Only use this AFTER showing the user their generated audio preview and getting approval. This finalizes distribution. For generating music, use generate_music first and share the audioUrl with the user.',
     inputSchema: {
       type: 'object',
       properties: {
