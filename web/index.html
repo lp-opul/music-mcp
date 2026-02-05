@@ -690,7 +690,7 @@ npm install && npm run build</code></pre>
         
         if (taskId) {
           // Music is being generated - poll for it
-          const pollUrl = `https://distro-nu.vercel.app/api/generate/status/${taskId}`;
+          const pollUrl = `https://distromcp.xyz/api/generate/status/${taskId}`;
           
           addMessage('assistant', 'Starting music generation. This takes about 60-90 seconds.');
           conversationHistory.push({ role: 'assistant', content: 'Starting music generation...' });

@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const API_BASE = process.env.DISTRO_API_URL || 'https://distro-nu.vercel.app';
+const API_BASE = process.env.DISTRO_API_URL || 'https://distromcp.xyz';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -356,7 +356,7 @@ This tool handles EVERYTHING in one call: creates artist, release, uploads audio
 DO NOT call individual tools (create_artist, create_release, upload_track, etc.) - use complete_release instead!
 
 URLS:
-- Release status/tracking: https://distro-nu.vercel.app/status/{releaseId}
+- Release status/tracking: https://distromcp.xyz/status/{releaseId}
 - Never show localhost URLs to users`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

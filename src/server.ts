@@ -107,7 +107,8 @@ function getRemainingGenerations(userId: string): number {
 const app = express();
 // CORS - restrict to known origins in production
 const allowedOrigins = [
-  'https://distro-nu.vercel.app',
+  'https://distromcp.xyz',
+  'https://www.distromcp.xyz',
   'https://web-navy-eight-33.vercel.app',
   'http://localhost:3000',
   'http://localhost:5173',
@@ -844,7 +845,7 @@ app.post('/api/release-full', asyncHandler(async (req: Request, res: Response) =
     trackTitle,
     // Note: Don't return audioUrl/imageUrl - Suno URLs expire quickly
     // The track is already uploaded to Ditto
-    statusUrl: `https://distro-nu.vercel.app/status/${releaseId}`,
+    statusUrl: `https://distromcp.xyz/status/${releaseId}`,
     dsps: defaultDsps,
   });
 }));

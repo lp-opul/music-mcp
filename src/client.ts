@@ -12,7 +12,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
-const API_BASE = process.env.DISTRO_API_URL || 'https://distro-nu.vercel.app';
+const API_BASE = process.env.DISTRO_API_URL || 'https://distromcp.xyz';
 
 // API request helper
 async function apiRequest(method: string, endpoint: string, body?: any): Promise<any> {

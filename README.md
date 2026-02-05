@@ -76,7 +76,7 @@ Spotify, Apple Music, Amazon Music, YouTube Music, TikTok, Instagram, Deezer, Ti
 
 ## API
 
-The hosted API is available at `https://distro-nu.vercel.app`
+The hosted API is available at `https://distromcp.xyz`
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
