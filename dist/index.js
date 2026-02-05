@@ -412,14 +412,14 @@ const tools = [
         },
     },
     {
-        name: 'release_ai_track',
-        description: 'IMPORTANT: Only use this AFTER showing the user their generated audio preview and getting approval. This finalizes distribution. For generating music, use generate_music first and share the audioUrl with the user.',
+        name: 'distribute_track',
+        description: 'Distribute a previously generated track to streaming platforms. REQUIRES a taskId from generate_music. Only call this AFTER the user has previewed and approved their song.',
         inputSchema: {
             type: 'object',
             properties: {
-                prompt: {
+                taskId: {
                     type: 'string',
-                    description: 'Description of the song to generate. If using custom lyrics, this becomes the musical style.',
+                    description: 'The taskId returned from generate_music (required)',
                 },
                 artistName: {
                     type: 'string',
@@ -431,7 +431,7 @@ const tools = [
                 },
                 releaseDate: {
                     type: 'string',
-                    description: 'Release date in YYYY-MM-DD format (must be at least 7 days in the future)',
+                    description: 'Release date in YYYY-MM-DD format (must be at least 7 days in the future). Defaults to 7 days from now.',
                 },
                 dsps: {
                     type: 'array',
@@ -439,26 +439,10 @@ const tools = [
                         type: 'string',
                         enum: ['spotify', 'apple_music', 'amazon_music', 'youtube_music', 'deezer', 'tidal', 'pandora', 'soundcloud', 'tiktok', 'instagram'],
                     },
-                    description: 'Optional: List of DSPs to submit to (e.g., ["spotify", "apple_music"])',
-                },
-                instrumental: {
-                    type: 'boolean',
-                    description: 'If true, generate instrumental only (no vocals). Cannot be used with custom lyrics.',
-                },
-                lyrics: {
-                    type: 'string',
-                    description: 'Optional: Your own lyrics. Use [Verse], [Chorus], [Bridge] tags. If provided, AI will sing your words.',
-                },
-                style: {
-                    type: 'string',
-                    description: 'Optional: Musical style (e.g., "indie pop, dreamy vocals, acoustic guitar"). Recommended when using custom lyrics.',
-                },
-                artworkPrompt: {
-                    type: 'string',
-                    description: 'Optional: Description for AI-generated artwork (e.g., "abstract neon waves"). If provided, generates cover art.',
+                    description: 'Platforms to distribute to. Defaults to all major platforms.',
                 },
             },
-            required: ['prompt', 'artistName', 'trackTitle', 'releaseDate'],
+            required: ['taskId', 'artistName', 'trackTitle'],
         },
     },
     {
@@ -576,16 +560,12 @@ const generateMusicSchema = z.object({
     lyrics: z.string().optional(),
     title: z.string().optional(),
 });
-const releaseAiTrackSchema = z.object({
-    prompt: z.string(),
+const distributeTrackSchema = z.object({
+    taskId: z.string(),
     artistName: z.string(),
     trackTitle: z.string(),
-    releaseDate: z.string(),
+    releaseDate: z.string().optional(),
     dsps: z.array(z.enum(['spotify', 'apple_music', 'amazon_music', 'youtube_music', 'deezer', 'tidal', 'pandora', 'soundcloud', 'tiktok', 'instagram'])).optional(),
-    instrumental: z.boolean().optional(),
-    lyrics: z.string().optional(),
-    style: z.string().optional(),
-    artworkPrompt: z.string().optional(),
 });
 const getMyWalletSchema = z.object({
     artistName: z.string(),
@@ -1105,8 +1085,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             // ============================================
             // One-Shot AI Release Tool
             // ============================================
-            case 'release_ai_track': {
-                const validated = releaseAiTrackSchema.parse(args);
+            case 'distribute_track': {
+                const validated = distributeTrackSchema.parse(args);
                 // Check required clients
                 if (!sunoClient) {
                     return {
@@ -1114,7 +1094,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                                 type: 'text',
                                 text: JSON.stringify({
                                     error: 'Suno API not configured',
-                                    message: 'Set SUNO_API_KEY in .env to enable AI music generation.',
+                                    message: 'Set SUNO_API_KEY in .env.',
                                 }, null, 2),
                             }],
                         isError: true,
@@ -1134,28 +1114,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 }
                 const steps = [];
                 try {
-                    // Step 1: Generate music with Suno
-                    const usingCustomLyrics = !!validated.lyrics;
-                    if (usingCustomLyrics) {
-                        steps.push('🎵 Generating music with your custom lyrics...');
-                    }
-                    else {
-                        steps.push('🎵 Generating music with Suno AI...');
-                    }
-                    console.error(`[release_ai_track] Step 1: Generating music (custom lyrics: ${usingCustomLyrics})...`);
-                    const task = await sunoClient.generateMusic({
-                        prompt: validated.prompt,
-                        style: validated.style,
-                        instrumental: validated.instrumental,
-                        lyrics: validated.lyrics,
-                        title: validated.trackTitle,
-                    });
-                    steps.push(`   Task ID: ${task.taskId}`);
-                    console.error(`[release_ai_track] Task ID: ${task.taskId}`);
-                    // Step 2: Wait for completion
-                    steps.push('⏳ Waiting for music generation to complete...');
-                    console.error('[release_ai_track] Step 2: Waiting for completion...');
-                    const sunoResult = await sunoClient.waitForCompletion(task.taskId);
+                    // Step 1: Fetch the generated track using taskId
+                    steps.push('📥 Fetching your generated track...');
+                    console.error(`[distribute_track] Step 1: Fetching track for taskId: ${validated.taskId}`);
+                    const sunoResult = await sunoClient.getGenerationDetails(validated.taskId);
                     const generatedTrack = sunoResult.tracks?.[0];
                     if (!generatedTrack) {
                         throw new Error('No tracks were generated');
@@ -1164,7 +1126,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     steps.push(`   Audio URL: ${generatedTrack.audioUrl}`);
                     // Step 3: Find or create artist on Ditto
                     steps.push(`👤 Looking for artist "${validated.artistName}" on Ditto...`);
-                    console.error(`[release_ai_track] Step 3: Finding or creating artist: ${validated.artistName}`);
+                    console.error(`[distribute_track] Step 3: Finding or creating artist: ${validated.artistName}`);
                     // Check if artist already exists
                     const existingArtists = await dittoClient.getArtists();
                     const artistList = Array.isArray(existingArtists) ? existingArtists : (existingArtists['hydra:member'] || []);
@@ -1175,14 +1137,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         artistId = existingArtist.id;
                         artistIri = `/api/me/artists/${artistId}`;
                         steps.push(`   ✅ Found existing artist (ID: ${artistId})`);
-                        console.error(`[release_ai_track] Using existing artist: ${artistId}`);
+                        console.error(`[distribute_track] Using existing artist: ${artistId}`);
                     }
                     else {
                         const artistResult = await dittoClient.createArtist(validated.artistName);
                         artistId = artistResult.id;
                         artistIri = `/api/me/artists/${artistId}`;
                         steps.push(`   ✅ Created new artist (ID: ${artistId})`);
-                        console.error(`[release_ai_track] Created new artist: ${artistId}`);
+                        console.error(`[distribute_track] Created new artist: ${artistId}`);
                     }
                     // Step 3b: Check if wallet is set for artist
                     const artistWallet = getArtistWallet(validated.artistName);
@@ -1190,12 +1152,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         steps.push(`💰 Wallet: ${artistWallet.slice(0, 6)}...${artistWallet.slice(-4)}`);
                     }
                     // Step 4: Create release on Ditto
-                    steps.push(`💿 Creating release "${validated.trackTitle}" for ${validated.releaseDate}...`);
-                    console.error(`[release_ai_track] Step 4: Creating release: ${validated.trackTitle}`);
+                    // Default release date to 7 days from now if not provided
+                    const releaseDate = validated.releaseDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                    steps.push(`💿 Creating release "${validated.trackTitle}" for ${releaseDate}...`);
+                    console.error(`[distribute_track] Step 4: Creating release: ${validated.trackTitle}`);
                     const releaseResult = await dittoClient.createRelease({
                         title: validated.trackTitle,
                         artistId: artistIri,
-                        releaseDate: validated.releaseDate,
+                        releaseDate: releaseDate,
                         copyrightHolder: validated.artistName,
                         copyrightYear: new Date().getFullYear(),
                     });
@@ -1204,31 +1168,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     steps.push(`   ✅ Release ID: ${releaseId}`);
                     // Step 5: Create track with audio
                     steps.push(`🎤 Creating track with audio...`);
-                    console.error(`[release_ai_track] Step 5: Creating track with audio from ${generatedTrack.audioUrl}`);
+                    console.error(`[distribute_track] Step 5: Creating track with audio from ${generatedTrack.audioUrl}`);
                     const trackResult = await dittoClient.createTrackWithAudio(releaseId.toString(), generatedTrack.audioUrl, `${validated.trackTitle.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`);
                     const trackId = trackResult.id || trackResult['@id']?.match(/\/(\d+)$/)?.[1];
                     steps.push(`   ✅ Track created with audio (ID: ${trackId})`);
-                    // Step 5b: Upload artwork
-                    // If artworkPrompt provided → generate custom via Ditto
-                    // Otherwise → use Suno-generated artwork
+                    // Step 5b: Upload artwork from Suno
                     let artworkResult = null;
-                    if (validated.artworkPrompt) {
-                        steps.push(`🎨 Generating custom AI artwork...`);
-                        console.error(`[release_ai_track] Step 5b: Generating artwork with prompt: ${validated.artworkPrompt}`);
-                        try {
-                            artworkResult = await dittoClient.generateArtwork(releaseId.toString(), validated.artworkPrompt);
-                            steps.push(`   ✅ Custom artwork generated`);
-                        }
-                        catch (artworkError) {
-                            const artworkErrorMsg = artworkError instanceof Error ? artworkError.message : String(artworkError);
-                            steps.push(`   ⚠️ Custom artwork failed: ${artworkErrorMsg}`);
-                            console.error(`[release_ai_track] Custom artwork error: ${artworkErrorMsg}`);
-                        }
-                    }
-                    else if (generatedTrack.imageUrl) {
-                        // Auto-upload Suno artwork
-                        steps.push(`🎨 Uploading Suno-generated artwork...`);
-                        console.error(`[release_ai_track] Step 5b: Uploading Suno artwork from ${generatedTrack.imageUrl}`);
+                    if (generatedTrack.imageUrl) {
+                        steps.push(`🎨 Uploading artwork...`);
+                        console.error(`[distribute_track] Step 5b: Uploading Suno artwork from ${generatedTrack.imageUrl}`);
                         try {
                             artworkResult = await dittoClient.uploadArtwork(releaseId.toString(), generatedTrack.imageUrl);
                             steps.push(`   ✅ Artwork uploaded`);
@@ -1236,14 +1184,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         catch (artworkError) {
                             const artworkErrorMsg = artworkError instanceof Error ? artworkError.message : String(artworkError);
                             steps.push(`   ⚠️ Artwork upload failed: ${artworkErrorMsg}`);
-                            console.error(`[release_ai_track] Artwork upload error: ${artworkErrorMsg}`);
+                            console.error(`[distribute_track] Artwork upload error: ${artworkErrorMsg}`);
                         }
                     }
                     // Step 6: Submit to DSPs (if specified)
                     let submissionResult = null;
                     if (validated.dsps && validated.dsps.length > 0) {
                         steps.push(`📡 Submitting to ${validated.dsps.length} DSPs: ${validated.dsps.join(', ')}...`);
-                        console.error(`[release_ai_track] Step 6: Submitting to DSPs: ${validated.dsps.join(', ')}`);
+                        console.error(`[distribute_track] Step 6: Submitting to DSPs: ${validated.dsps.join(', ')}`);
                         const storeIds = [];
                         for (const dsp of validated.dsps) {
                             const storeId = getStoreId(dsp);
@@ -1273,7 +1221,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                                         trackTitle: validated.trackTitle,
                                         releaseId: releaseId,
                                         trackId: trackId,
-                                        releaseDate: validated.releaseDate,
+                                        releaseDate: releaseDate,
                                         dspsSubmitted: validated.dsps || [],
                                     },
                                     artworkUploaded: artworkResult !== null,
