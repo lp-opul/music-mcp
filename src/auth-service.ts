@@ -213,6 +213,74 @@ export function rateLimitMiddleware(type: RateLimitType = 'default') {
   };
 }
 
+// ============================================
+// Release Ownership Tracking
+// ============================================
+
+// In-memory fallback for release ownership
+const memoryReleaseOwnership = new Map<string, string>(); // releaseId -> userId
+
+// Record that a user owns a release
+export async function setReleaseOwner(releaseId: string, userId: string): Promise<void> {
+  const key = `release:owner:${releaseId}`;
+  const userReleasesKey = `user:releases:${userId}`;
+  
+  if (redis) {
+    try {
+      await redis.set(key, userId);
+      await redis.sadd(userReleasesKey, releaseId);
+      return;
+    } catch (error) {
+      console.error('Redis setReleaseOwner error:', error);
+    }
+  }
+  
+  // In-memory fallback
+  memoryReleaseOwnership.set(releaseId, userId);
+}
+
+// Get the owner of a release
+export async function getReleaseOwner(releaseId: string): Promise<string | null> {
+  const key = `release:owner:${releaseId}`;
+  
+  if (redis) {
+    try {
+      return await redis.get<string>(key);
+    } catch (error) {
+      console.error('Redis getReleaseOwner error:', error);
+    }
+  }
+  
+  return memoryReleaseOwnership.get(releaseId) || null;
+}
+
+// Get all release IDs owned by a user
+export async function getUserReleaseIds(userId: string): Promise<string[]> {
+  const key = `user:releases:${userId}`;
+  
+  if (redis) {
+    try {
+      const ids = await redis.smembers(key);
+      return ids || [];
+    } catch (error) {
+      console.error('Redis getUserReleaseIds error:', error);
+    }
+  }
+  
+  // In-memory fallback
+  const ids: string[] = [];
+  memoryReleaseOwnership.forEach((owner, releaseId) => {
+    if (owner === userId) ids.push(releaseId);
+  });
+  return ids;
+}
+
+// Check if a user owns a release
+export async function userOwnsRelease(releaseId: string, userId: string): Promise<boolean> {
+  const owner = await getReleaseOwner(releaseId);
+  return owner === userId;
+}
+
 // Get user's usage stats
 export async function getUserStats(userId: string): Promise<Record<string, any>> {
   const stats: Record<string, any> = {};

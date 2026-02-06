@@ -14,7 +14,7 @@ config({ path: join(__dirname, '..', '.env') });
 import { createDittoClient } from './ditto-client.js';
 import { createSunoClient } from './suno-client.js';
 import { setArtistWallet, getArtistWallet, isValidEthAddress } from './wallet-service.js';
-import { apiKeyAuth, rateLimitMiddleware, getUserStats } from './auth-service.js';
+import { apiKeyAuth, rateLimitMiddleware, getUserStats, setReleaseOwner, getUserReleaseIds } from './auth-service.js';
 import sharp from 'sharp';
 
 // URL validation to prevent SSRF attacks
@@ -248,6 +248,10 @@ app.post('/api/release', asyncHandler(async (req: Request, res: Response) => {
     console.error('[Server] Failed to add artist to release:', err.message || err);
   }
   
+  // Track release ownership
+  await setReleaseOwner(releaseId.toString(), userId);
+  console.log(`[Release] Ownership recorded for user: ${userId}`);
+  
   res.json({
     success: true,
     release: result,
@@ -359,15 +363,29 @@ app.get('/status/:id', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 /**
- * GET /api/releases - List releases
+ * GET /api/releases - List releases (filtered to user's own releases)
  */
 app.get('/api/releases', asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).userId || req.ip || 'anonymous';
+  
+  // Get all releases from Ditto
   const result = await dittoClient.getReleases();
-  const releases = Array.isArray(result) ? result : (result['hydra:member'] || []);
+  const allReleases = Array.isArray(result) ? result : (result['hydra:member'] || []);
+  
+  // Get this user's release IDs
+  const userReleaseIds = await getUserReleaseIds(userId);
+  
+  // Filter to only show user's own releases
+  // If user has no tracked releases, show none (not all)
+  const releases = allReleases.filter((r: any) => 
+    userReleaseIds.includes(r.id?.toString())
+  );
+  
   res.json({
     success: true,
     releases,
     count: releases.length,
+    totalInAccount: allReleases.length,
   });
 }));
 
@@ -809,6 +827,10 @@ app.post('/api/release-full', asyncHandler(async (req: Request, res: Response) =
       copyrightYear: currentYear,
     });
     console.log(`[ReleaseFull] Created release: ${release.id}`);
+    
+    // Track release ownership
+    await setReleaseOwner(release.id.toString(), userId);
+    console.log(`[ReleaseFull] Ownership recorded for user: ${userId}`);
     
     // Try to update with additional required fields
     const releaseIdNum = release.id.toString().match(/(\d+)$/)?.[1] || release.id;
