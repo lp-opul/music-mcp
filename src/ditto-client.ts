@@ -471,7 +471,6 @@ export class DittoClient {
   async uploadArtworkBuffer(releaseId: string, imageBuffer: Buffer): Promise<any> {
     const token = await this.authenticate();
     
-    
     // Create FormData with the image buffer (convert to Uint8Array for Blob compatibility)
     const imageBlob = new Blob([new Uint8Array(imageBuffer)], { type: 'image/jpeg' });
     const formData = new FormData();
@@ -489,19 +488,33 @@ export class DittoClient {
       headers['X-Basic-Authorization'] = this.basicAuthHeader;
     }
     
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+    // Add 60s timeout for artwork upload
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
     
-    if (!uploadResponse.ok) {
-      const error = await uploadResponse.text();
-      throw new Error(`Failed to upload artwork: ${uploadResponse.status} - ${error}`);
+    try {
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'POST',
+        headers,
+        body: formData,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      
+      if (!uploadResponse.ok) {
+        const error = await uploadResponse.text();
+        throw new Error(`Failed to upload artwork: ${uploadResponse.status} - ${error}`);
+      }
+      
+      const result = await uploadResponse.json();
+      return result;
+    } catch (e: any) {
+      clearTimeout(timeout);
+      if (e.name === 'AbortError') {
+        throw new Error('Artwork upload timed out after 60s');
+      }
+      throw e;
     }
-    
-    const result = await uploadResponse.json();
-    return result;
   }
 
   /**

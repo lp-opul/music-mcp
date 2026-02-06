@@ -16,6 +16,45 @@ import { createSunoClient } from './suno-client.js';
 import { setArtistWallet, getArtistWallet, isValidEthAddress } from './wallet-service.js';
 import sharp from 'sharp';
 
+// URL validation to prevent SSRF attacks
+function isValidExternalUrl(urlString: string): boolean {
+  try {
+    const url = new URL(urlString);
+    
+    // Only allow https (and http for localhost in dev)
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && url.hostname === 'localhost')) {
+      return false;
+    }
+    
+    // Block private IP ranges
+    const hostname = url.hostname.toLowerCase();
+    const blockedPatterns = [
+      /^localhost$/i,
+      /^127\./,
+      /^10\./,
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
+      /^192\.168\./,
+      /^169\.254\./,
+      /^0\./,
+      /^::1$/,
+      /^fc00:/i,
+      /^fe80:/i,
+      /\.local$/i,
+      /\.internal$/i,
+    ];
+    
+    for (const pattern of blockedPatterns) {
+      if (pattern.test(hostname)) {
+        return false;
+      }
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Initialize clients
 const dittoClient = createDittoClient();
 const sunoClient = createSunoClient();
@@ -250,6 +289,17 @@ app.get('/api/release/:id', asyncHandler(async (req: Request, res: Response) => 
 /**
  * GET /status/:id - Nice HTML status page for a release
  */
+// HTML escape function to prevent XSS
+function escapeHtml(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 app.get('/status/:id', asyncHandler(async (req: Request, res: Response) => {
   const id = req.params.id as string;
   const release = await dittoClient.getRelease(id);
@@ -272,18 +322,19 @@ app.get('/status/:id', asyncHandler(async (req: Request, res: Response) => {
   });
   
   const artworkHtml = artwork 
-    ? '<img src="' + artwork + '" alt="Artwork" class="artwork">'
+    ? '<img src="' + escapeHtml(artwork) + '" alt="Artwork" class="artwork">'
     : '<div class="no-artwork">🎵</div>';
   
-  const copyrightHolder = release.copyrightHolder || 'Not specified';
-  const language = release.language?.name || 'English';
+  const copyrightHolder = escapeHtml(release.copyrightHolder || 'Not specified');
+  const language = escapeHtml(release.language?.name || 'English');
+  const safeTitle = escapeHtml(release.title || 'Untitled');
   
   const html = '<!DOCTYPE html>' +
 '<html lang="en">' +
 '<head>' +
 '  <meta charset="UTF-8">' +
 '  <meta name="viewport" content="width=device-width, initial-scale=1.0">' +
-'  <title>' + release.title + ' - Release Status</title>' +
+'  <title>' + safeTitle + ' - Release Status</title>' +
 '  <style>' +
 '    * { box-sizing: border-box; margin: 0; padding: 0; }' +
 '    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; color: white; padding: 40px 20px; }' +
@@ -307,14 +358,14 @@ app.get('/status/:id', asyncHandler(async (req: Request, res: Response) => {
 '  <div class="container">' +
 '    <div class="card">' +
 '      ' + artworkHtml +
-'      <h1>' + release.title + '</h1>' +
+'      <h1>' + safeTitle + '</h1>' +
 '      <div class="status-container">' +
 '        <div class="status">' + status.icon + ' ' + status.label + '</div>' +
 '      </div>' +
 '      <div class="details">' +
 '        <div class="detail"><span class="label">Release ID</span><span class="value">#' + release.id + '</span></div>' +
 '        <div class="detail"><span class="label">Release Date</span><span class="value">' + releaseDate + '</span></div>' +
-'        <div class="detail"><span class="label">Copyright</span><span class="value">© ' + release.copyrightYear + ' ' + copyrightHolder + '</span></div>' +
+'        <div class="detail"><span class="label">Copyright</span><span class="value">© ' + escapeHtml(String(release.copyrightYear || '')) + ' ' + copyrightHolder + '</span></div>' +
 '        <div class="detail"><span class="label">Language</span><span class="value">' + language + '</span></div>' +
 '      </div>' +
 '      <div class="footer">Powered by <a href="https://web-navy-eight-33.vercel.app">MCP Distro</a></div>' +
@@ -633,6 +684,10 @@ app.post('/api/upload-artwork', asyncHandler(async (req: Request, res: Response)
     }
     imageBuffer = Buffer.from(base64Data, 'base64');
   } else if (artworkInput.startsWith('http')) {
+    // Validate URL to prevent SSRF
+    if (!isValidExternalUrl(artworkInput)) {
+      return res.status(400).json({ error: 'Invalid URL - only https URLs to public domains are allowed' });
+    }
     const response = await fetch(artworkInput);
     if (!response.ok) {
       return res.status(400).json({ error: `Failed to fetch image: ${response.status}` });
@@ -731,11 +786,14 @@ app.post('/api/release-full', asyncHandler(async (req: Request, res: Response) =
     return res.status(500).json({ error: 'Failed to download audio' });
   }
   
-  // Download artwork
+  // Download artwork (with 30s timeout)
   let artworkBuffer: Buffer | null = null;
   if (track.imageUrl) {
     try {
-      const imgRes = await fetch(track.imageUrl);
+      const artworkController = new AbortController();
+      const artworkTimeout = setTimeout(() => artworkController.abort(), 30000);
+      const imgRes = await fetch(track.imageUrl, { signal: artworkController.signal });
+      clearTimeout(artworkTimeout);
       if (imgRes.ok) {
         const buffer = await imgRes.arrayBuffer();
         artworkBuffer = Buffer.from(buffer);
@@ -743,6 +801,7 @@ app.post('/api/release-full', asyncHandler(async (req: Request, res: Response) =
       }
     } catch (e) {
       console.error(`[ReleaseFull] Artwork download failed: ${e}`);
+      // Continue without artwork - not critical
     }
   }
   
@@ -902,45 +961,10 @@ app.post('/api/submit', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // ============================================
-// Wallet Endpoints
+// Wallet Endpoints - DISABLED for security
+// These endpoints are disabled to prevent wallet hijacking.
+// Wallet functionality requires proper authentication first.
 // ============================================
-
-/**
- * POST /api/wallet - Set artist wallet
- */
-app.post('/api/wallet', asyncHandler(async (req: Request, res: Response) => {
-  const { artistName, walletAddress } = req.body;
-  
-  if (!artistName || !walletAddress) {
-    return res.status(400).json({ error: 'artistName and walletAddress are required' });
-  }
-  
-  const result = setArtistWallet(artistName, walletAddress);
-  
-  if (!result.success) {
-    return res.status(400).json({ error: result.error });
-  }
-  
-  res.json({
-    success: true,
-    artistName,
-    walletAddress,
-  });
-}));
-
-/**
- * GET /api/wallet/:artistName - Get artist wallet
- */
-app.get('/api/wallet/:artistName', asyncHandler(async (req: Request, res: Response) => {
-  const artistName = req.params.artistName as string;
-  const wallet = getArtistWallet(artistName);
-  
-  res.json({
-    success: true,
-    artistName,
-    walletAddress: wallet,
-  });
-}));
 
 // ============================================
 // Health Check

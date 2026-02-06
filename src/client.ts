@@ -12,7 +12,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
-const API_BASE = process.env.DISTRO_API_URL || 'https://distromcp.xyz';
+const API_BASE = process.env.DISTRO_API_URL || 'https://distro-nu.vercel.app';
 
 // API request helper
 async function apiRequest(method: string, endpoint: string, body?: any): Promise<any> {
@@ -94,7 +94,7 @@ const tools: Tool[] = [
   },
   {
     name: 'generate_music',
-    description: 'Generate AI music with Suno',
+    description: 'Start AI music generation with Suno. Returns a taskId immediately - use check_generation_status to poll for completion.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -105,6 +105,17 @@ const tools: Tool[] = [
         instrumental: { type: 'boolean', description: 'Instrumental only (no vocals)' },
       },
       required: ['prompt'],
+    },
+  },
+  {
+    name: 'check_generation_status',
+    description: 'Check status of music generation. Poll this after generate_music until status is SUCCESS. Returns audioUrl when complete.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'Task ID from generate_music' },
+      },
+      required: ['taskId'],
     },
   },
   {
@@ -204,6 +215,10 @@ const generateMusicSchema = z.object({
   instrumental: z.boolean().optional(),
 });
 
+const checkGenerationStatusSchema = z.object({
+  taskId: z.string(),
+});
+
 const uploadTrackSchema = z.object({
   releaseId: z.string(),
   title: z.string(),
@@ -283,7 +298,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'generate_music': {
         const validated = generateMusicSchema.parse(args);
-        result = await apiRequest('POST', '/api/generate', validated);
+        // Don't wait for completion - return taskId immediately and let user poll
+        result = await apiRequest('POST', '/api/generate', { ...validated, wait: false });
+        break;
+      }
+
+      case 'check_generation_status': {
+        const validated = checkGenerationStatusSchema.parse(args);
+        result = await apiRequest('GET', `/api/generate/status/${validated.taskId}`);
         break;
       }
 

@@ -389,26 +389,11 @@ const tools: Tool[] = [
     },
   },
   {
-    name: 'generate_artwork',
-    description: 'Generate AI artwork for a release using Ditto\'s artgen service.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        releaseId: {
-          type: 'string',
-          description: 'Release ID to generate artwork for',
-        },
-        prompt: {
-          type: 'string',
-          description: 'Description of desired artwork (e.g., "abstract colorful waves with neon lights")',
-        },
-      },
-      required: ['releaseId', 'prompt'],
-    },
-  },
-  {
     name: 'generate_music',
-    description: 'Generate music using Suno AI. Returns an audioUrl - ALWAYS share this URL with the user so they can preview their song before distribution. Ask for approval before proceeding to release.',
+    description: `Generate music using Suno AI. Returns an audioUrl - ALWAYS share this URL with the user so they can preview their song before distribution.
+
+DO NOT ask if the user has an artist profile - profiles are created automatically during distribution.
+Just ask: genre/style, lyrics or instrumental, artist NAME, and track title. Then generate.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -438,7 +423,9 @@ const tools: Tool[] = [
   },
   {
     name: 'distribute_track',
-    description: 'Distribute a previously generated track to streaming platforms. REQUIRES a taskId from generate_music. Only call this AFTER the user has previewed and approved their song.',
+    description: `Distribute a track to streaming platforms. REQUIRES taskId from generate_music.
+
+IMPORTANT: Artwork is AUTOMATIC - Suno includes cover art with every track. DO NOT generate or create artwork. Just call this tool.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -453,18 +440,6 @@ const tools: Tool[] = [
         trackTitle: {
           type: 'string',
           description: 'Title of the track/release',
-        },
-        releaseDate: {
-          type: 'string',
-          description: 'Release date in YYYY-MM-DD format (must be at least 7 days in the future). Defaults to 7 days from now.',
-        },
-        dsps: {
-          type: 'array',
-          items: {
-            type: 'string',
-            enum: ['spotify', 'apple_music', 'amazon_music', 'youtube_music', 'deezer', 'tidal', 'pandora', 'soundcloud', 'tiktok', 'instagram'],
-          },
-          description: 'Platforms to distribute to. Defaults to all major platforms.',
         },
       },
       required: ['taskId', 'artistName', 'trackTitle'],
@@ -582,11 +557,6 @@ const setSplitsSchema = z.object({
 const uploadArtworkSchema = z.object({
   releaseId: z.string(),
   artworkInput: z.string(),
-});
-
-const generateArtworkSchema = z.object({
-  releaseId: z.string(),
-  prompt: z.string(),
 });
 
 const generateMusicSchema = z.object({
@@ -1119,28 +1089,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case 'generate_artwork': {
-        const validated = generateArtworkSchema.parse(args);
-        
-        if (!dittoClient) {
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                error: 'Ditto API not configured',
-                message: 'Set DITTO_EMAIL and DITTO_PASSWORD in .env to enable artwork generation.',
-              }, null, 2),
-            }],
-            isError: true,
-          };
-        }
-        
-        const result = await dittoClient.generateArtwork(validated.releaseId, validated.prompt);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
       // ============================================
       // Suno AI Music Generation
       // ============================================
@@ -1319,7 +1267,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           
           steps.push(`   ✅ Track created with audio (ID: ${trackId})`);
 
-          // Step 5b: Upload artwork from Suno
+          // Step 5b: Upload Suno artwork (automatic)
           let artworkResult = null;
           if (generatedTrack.imageUrl) {
             steps.push(`🎨 Uploading artwork...`);

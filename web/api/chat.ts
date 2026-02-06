@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const API_BASE = process.env.DISTRO_API_URL || 'https://distromcp.xyz';
+const API_BASE = process.env.DISTRO_API_URL || 'https://distro-nu.vercel.app';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -288,6 +288,9 @@ RULES:
 - Be natural and conversational - vary your responses
 - NEVER generate music without asking for artist name and track title first!
 - Don't repeat the same questions verbatim
+- NEVER mention "Ditto", "Ditto Music", or "Ditto dashboard" - this is a white-label service
+- Users track their releases through YOU or the status URL - not through any external dashboard
+- Don't suggest users "check" or "log into" any external service
 
 REQUIRED INFO BEFORE GENERATING:
 You need these 4 things before calling generate_music:
@@ -357,11 +360,29 @@ DO NOT call individual tools (create_artist, create_release, upload_track, etc.)
 
 URLS:
 - Release status/tracking: https://distromcp.xyz/status/{releaseId}
-- Never show localhost URLs to users`;
+- Never show localhost URLs to users
+
+AFTER RELEASE IS COMPLETE:
+- Tell them the track will be live on streaming platforms within 7 days
+- Provide the status URL: https://distromcp.xyz/status/{releaseId}
+- Offer to help with anything else (another track, setting up wallet for royalties)
+- If they ask about stats/analytics - tell them you can check their stream counts once the track is live
+- NEVER mention external dashboards or suggest logging into other services`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Handle CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Handle CORS - restrict to known origins
+  const allowedOrigins = [
+    'https://distromcp.xyz',
+    'https://www.distromcp.xyz',
+    'https://web-navy-eight-33.vercel.app',
+  ];
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (!origin) {
+    // Allow same-origin requests (no Origin header)
+    res.setHeader('Access-Control-Allow-Origin', 'https://distromcp.xyz');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
   
