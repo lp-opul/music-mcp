@@ -38,10 +38,12 @@
     "@coinbase/x402": "^2.1.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@privy-io/server-auth": "^1.32.5",
+    "@upstash/redis": "^1.36.2",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "sharp": "^0.34.5",
+    "uuid": "^13.0.0",
     "x402-express": "^1.1.0",
     "zod": "^3.23.8"
   },

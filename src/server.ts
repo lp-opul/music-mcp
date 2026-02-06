@@ -14,6 +14,7 @@ config({ path: join(__dirname, '..', '.env') });
 import { createDittoClient } from './ditto-client.js';
 import { createSunoClient } from './suno-client.js';
 import { setArtistWallet, getArtistWallet, isValidEthAddress } from './wallet-service.js';
+import { apiKeyAuth, rateLimitMiddleware, getUserStats } from './auth-service.js';
 import sharp from 'sharp';
 
 // URL validation to prevent SSRF attacks
@@ -85,25 +86,20 @@ const STORE_IDS: Record<string, number> = {
   instagram: 100,
 };
 
-// Rate limiting configuration
-const LIMITS = {
-  generations: 3,  // Music generations per day
-  releases: 5,     // Releases per day
-  artists: 5,      // Artist creations per day
-};
-
-// Track usage per endpoint type
-const usageTrackers = {
+// Rate limiting now handled by auth-service.ts with Redis support
+// In-memory fallback for compatibility (use auth-service.ts middleware for new endpoints)
+const legacyLimits = {
   generations: new Map<string, { count: number; date: string }>(),
   releases: new Map<string, { count: number; date: string }>(),
   artists: new Map<string, { count: number; date: string }>(),
 };
+const LIMITS = { generations: 5, releases: 10, artists: 10 };
 
-type LimitType = keyof typeof LIMITS;
+type LimitType = 'generations' | 'releases' | 'artists';
 
 function checkLimit(userId: string, type: LimitType): boolean {
   const today = new Date().toISOString().split('T')[0];
-  const tracker = usageTrackers[type];
+  const tracker = legacyLimits[type];
   const limit = LIMITS[type];
   const usage = tracker.get(userId);
   
@@ -111,35 +107,16 @@ function checkLimit(userId: string, type: LimitType): boolean {
     tracker.set(userId, { count: 1, date: today });
     return true;
   }
-  
-  if (usage.count >= limit) {
-    return false;
-  }
-  
+  if (usage.count >= limit) return false;
   usage.count++;
   return true;
 }
 
-function getRemaining(userId: string, type: LimitType): number {
-  const today = new Date().toISOString().split('T')[0];
-  const tracker = usageTrackers[type];
-  const limit = LIMITS[type];
-  const usage = tracker.get(userId);
-  
-  if (!usage || usage.date !== today) {
-    return limit;
-  }
-  
-  return Math.max(0, limit - usage.count);
-}
-
-// Legacy functions for backward compatibility
-function checkDailyLimit(userId: string): boolean {
-  return checkLimit(userId, 'generations');
-}
-
 function getRemainingGenerations(userId: string): number {
-  return getRemaining(userId, 'generations');
+  const today = new Date().toISOString().split('T')[0];
+  const usage = legacyLimits.generations.get(userId);
+  if (!usage || usage.date !== today) return LIMITS.generations;
+  return Math.max(0, LIMITS.generations - usage.count);
 }
 
 // Create Express app
@@ -168,6 +145,9 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json({ limit: '50mb' }));
+
+// API Key auth - attach user to all requests (not required by default for backward compatibility)
+app.use(apiKeyAuth(false));
 
 // Error handler
 const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => 
@@ -406,9 +386,9 @@ app.post('/api/generate', asyncHandler(async (req: Request, res: Response) => {
   
   // Rate limiting
   const userId = req.ip || 'anonymous';
-  if (!checkDailyLimit(userId)) {
+  if (!checkLimit(userId, 'generations')) {
     return res.status(429).json({ 
-      error: 'Daily limit reached (3 songs per day). Try again tomorrow!',
+      error: 'Daily limit reached (5 songs per day). Try again tomorrow!',
       remaining: 0,
     });
   }
@@ -979,6 +959,16 @@ app.get('/', (req: Request, res: Response) => {
     health: '/api/health',
   });
 });
+
+// User stats endpoint - shows rate limit usage
+app.get('/api/stats', asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).userId || req.ip || 'anonymous';
+  const stats = await getUserStats(userId);
+  res.json({
+    userId: userId === 'anonymous' ? 'anonymous' : userId.substring(0, 8) + '...',
+    usage: stats,
+  });
+}));
 
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({
